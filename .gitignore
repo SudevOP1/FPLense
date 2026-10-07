@@ -1,0 +1,29 @@
+# secrets
+kaggle.json
+.env
+.env.*
+
+# data (never commit raw/derived source data; only data/published/ is committed)
+data/raw/
+data/lake/
+data/*.duckdb
+data/*.duckdb.wal
+data/cache/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# os / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
