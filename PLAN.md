@@ -1,10 +1,10 @@
 # FPLense: build plan
 
-A Fantasy Premier League points forecaster and squad optimizer: an ETL pipeline, SQL feature store, gradient-boosted forecast, integer-programming optimizer and a live app.
+A Fantasy Premier League points forecaster and squad optimizer: an ETL pipeline, SQL feature store, gradient-boosted forecast, integer-programming optimizer and a live full-stack web app (FastAPI + React).
 
-> Target: a strong final-year student, about 2.5–3 weeks part-time (roughly 14.5 working sessions of about 3 hours each), split into **6 phases** (§7).
-> Deadline: the resume entry is dated **Nov 2026**, so all 6 phases ship (public URL + measured metrics) by **30 Nov 2026**.
-> Machine: Windows for development. Deployment runs on GitHub Actions and Streamlit Community Cloud (both free).
+> Target: a strong final-year student, about 4 weeks part-time (roughly 21 working sessions of about 3 hours each), split into **8 phases** (§7).
+> Deadline: the resume entry is dated **Nov 2026**, so all 8 phases ship (public URL + measured metrics) by **30 Nov 2026**.
+> Machine: Windows for development. Deployment runs on GitHub Actions, a free Python web-service host for the FastAPI backend (Render) and a free static host for the React frontend (Vercel) (§8 P8).
 > Data: 4 free public sources: FPL history (GitHub), the live FPL API, bookmaker odds (football-data.co.uk) and club Elo ratings (a Kaggle dataset). See the "Data at a glance" table in §3.
 
 ---
@@ -15,29 +15,31 @@ A Fantasy Premier League points forecaster and squad optimizer: an ETL pipeline,
 
 Update this table at the end of every phase (see `CLAUDE.md` → "Implementing a phase"). Phase notes go in `PROGRESS.md`.
 
-| Phase | Name                                                  | Sessions | Status         | Finished   | Key result                                                                                                                                                                         |
-| ----- | ----------------------------------------------------- | -------: | -------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1    | Setup + historical ETL                                |        2 | ✅ done        | 2026-10-07 | 10 seasons in lake: 253,900 raw → 253,578 rows (322 AM rows dropped); 3,800 fixtures; schema tests green                                                                           |
-| P2    | Odds/Elo ETL + DuckDB feature store                   |      2.5 | ✅ done        | 2026-10-08 | 3,800/3,800 fixtures matched to odds, 7,600/7,600 team rows with Elo; `v_features` 253,578 rows × 43 features; implied CS 0.270 vs actual 0.267; leakage test green                |
-| P3    | EDA + baselines + LightGBM walk-forward               |      3.5 | ✅ done        | 2026-10-08 | Walk-forward 2025-26 GW5–38, regulars: B0 MAE 2.535 → LightGBM 2.246 (**−11.4%**, 95% CI [10.2, 12.6]); beats B0 in 34/34 GWs; 2024-25 holdout −10.6%; odds/Elo add ≈0 in ablation |
-| P4    | SHAP + model card + PuLP optimizer + transfer planner |        3 | ✅ done        | 2026-10-08 | SHAP top driver `minutes_r3`; ILP + planner + SHAP + backtest: 45 new tests green; backtest 2025-26 GW5–38: A (ILP+LightGBM) 1,751 vs B (ILP+B0) 1,826, A−B −75 [−276, +118] → no backtest claim |
-| P5    | Live API path + predictions + Streamlit app           |        2 | ⚠️ done*       | 2026-10-08 | Live GW6–10 predictions for 667 players (3,284 live rows through GW5; Elo fallback for all 50 fixtures, no E0 odds in the break); default squad £99.8m; 4 pages pass headless `AppTest`; 193 + 28 tests green. *Browser check of the pages by the developer pending |
-| P6    | GitHub Actions + deploy + README                      |      1.5 | ⬜ not started |            |                                                                                                                                                                                    |
+| Phase | Name                                                  | Sessions | Status         | Finished   | Key result                                                                                                                                                                                                                                                                                                                                                        |
+| ----- | ----------------------------------------------------- | -------: | -------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1    | Setup + historical ETL                                |        2 | ✅ done        | 2026-10-07 | 10 seasons in lake: 253,900 raw → 253,578 rows (322 AM rows dropped); 3,800 fixtures; schema tests green                                                                                                                                                                                                                                                          |
+| P2    | Odds/Elo ETL + DuckDB feature store                   |      2.5 | ✅ done        | 2026-10-08 | 3,800/3,800 fixtures matched to odds, 7,600/7,600 team rows with Elo; `v_features` 253,578 rows × 43 features; implied CS 0.270 vs actual 0.267; leakage test green                                                                                                                                                                                               |
+| P3    | EDA + baselines + LightGBM walk-forward               |      3.5 | ✅ done        | 2026-10-08 | Walk-forward 2025-26 GW5–38, regulars: B0 MAE 2.535 → LightGBM 2.246 (**−11.4%**, 95% CI [10.2, 12.6]); beats B0 in 34/34 GWs; 2024-25 holdout −10.6%; odds/Elo add ≈0 in ablation                                                                                                                                                                                |
+| P4    | SHAP + model card + PuLP optimizer + transfer planner |        3 | ✅ done        | 2026-10-08 | SHAP top driver `minutes_r3`; ILP + planner + SHAP + backtest: 45 new tests green; backtest 2025-26 GW5–38: A (ILP+LightGBM) 1,751 vs B (ILP+B0) 1,826, A−B −75 [−276, +118] → no backtest claim                                                                                                                                                                  |
+| P5    | Live API path + predictions + Streamlit app           |        2 | ⚠️ done\*      | 2026-10-08 | Live GW6–10 predictions for 667 players (3,284 live rows through GW5; Elo fallback for all 50 fixtures, no E0 odds in the break); default squad £99.8m; 4 pages pass headless `AppTest`; 193 + 28 tests green. \*The Streamlit app is **superseded** by the FastAPI + React app (P6–P7) and is deleted in P6; the live path, predictions and published files stay |
+| P6    | FastAPI backend + season-history data layer           |      2.5 | ⬜ not started |            |                                                                                                                                                                                                                                                                                                                                                                   |
+| P7    | React frontend (pitch, compare, my team, planner)     |        4 | ⬜ not started |            |                                                                                                                                                                                                                                                                                                                                                                   |
+| P8    | GitHub Actions + deploy + README                      |      1.5 | ⬜ not started |            |                                                                                                                                                                                                                                                                                                                                                                   |
 
 Status values: ⬜ not started · 🟨 in progress · ✅ done · ⚠️ done with deferrals (listed in `PROGRESS.md`).
 
 ### 0.1 Rules for building
 
-1. **One phase per run.** Build phases in order (P1 → P6). Don't start a phase until the previous one's "Done when" list (§8) is green or its deferrals are written down in `PROGRESS.md`.
+1. **One phase per run.** Build phases in order (P1 → P8). Don't start a phase until the previous one's "Done when" list (§8) is green or its deferrals are written down in `PROGRESS.md`.
 2. **Ask first, then build the whole phase in one pass.** Clarifying questions come up front; after that the entire phase (all modules, SQL, tests, notebooks and app pages listed for it) is implemented without stopping for per-file verification.
 3. **Tests before code, never weakened.** Write the tests named in each phase alongside or before the code they test. Never skip, `xfail` or loosen a test to make it pass.
-4. **Run the checks before finishing:** `ruff check .`, `ruff format --check .` and `pytest -q`. Fix failures. Don't launch the Streamlit app or long-running servers; the developer does that by hand.
+4. **Run the checks before finishing:** `ruff check .`, `ruff format --check .` and `pytest -q`; from P7 on also `npm run lint`, `npm run typecheck`, `npm test -- --run` and `npm run build` in `web/`. Fix failures. Don't launch the FastAPI server (`uvicorn`), the Vite dev server or other long-running servers; the developer does that by hand.
 5. **Numbers in §3 are sanity checks, not values to hard-code.** If outputs don't match, find out why and record it in `DECISIONS.md`.
 6. **Never commit data or secrets** (§0.3).
 
 ### 0.2 Kaggle account and API token
 
-Only one source needs Kaggle: the Elo ratings (`adamgbor/club-football-match-data-2000-2025`). The FPL history (GitHub), the FPL API and football-data.co.uk need no account.
+Two sources need Kaggle: the Elo ratings (`adamgbor/club-football-match-data-2000-2025`) and, from P6, the EA FC 26 ratings shown on player cards. The FPL history (GitHub), the FPL API and football-data.co.uk need no account.
 
 1. Create a free account at https://www.kaggle.com and verify your phone number (some downloads require it).
 2. Go to Kaggle → your profile → **Settings** → **API** → **Create New Token**. This downloads `kaggle.json`.
@@ -49,12 +51,14 @@ Only one source needs Kaggle: the Elo ratings (`adamgbor/club-football-match-dat
 
 ### 0.3 Licences: never commit raw data
 
-| Source                                            | Licence / terms                                       | What it means here                                        |
-| ------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------- |
-| vaastav/Fantasy-Premier-League (GitHub)           | Public repo; cite as its README asks                  | Credit it; don't re-host the full dataset                 |
-| Official FPL API                                  | Unofficial, undocumented; personal/non-commercial use | Cache politely, keep request rates low, no commercial use |
-| football-data.co.uk                               | Free; attribute the site                              | Credit it; don't re-host the CSVs                         |
-| Club Football Match Data (`adamgbor/...`, Kaggle) | MIT                                                   | Permissive, but still credit it                           |
+| Source                                                | Licence / terms                                       | What it means here                                                                                                       |
+| ----------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| vaastav/Fantasy-Premier-League (GitHub)               | Public repo; cite as its README asks                  | Credit it; don't re-host the full dataset                                                                                |
+| Official FPL API                                      | Unofficial, undocumented; personal/non-commercial use | Cache politely, keep request rates low, no commercial use                                                                |
+| football-data.co.uk                                   | Free; attribute the site                              | Credit it; don't re-host the CSVs                                                                                        |
+| Club Football Match Data (`adamgbor/...`, Kaggle)     | MIT                                                   | Permissive, but still credit it                                                                                          |
+| EA SPORTS FC 26 player ratings (Kaggle, picked in P6) | Varies by dataset; record it in P6                    | Only if the licence allows publishing a small `code → overall` map; otherwise the app shows the FPLense rating only (P6) |
+| Premier League player photos (FPL CDN)                | © Premier League; not ours                            | **Hotlink only** (`<img src>` to the CDN); never download, commit or re-host them                                        |
 
 Committing your small **published predictions** (`data/published/`) is fine: they are your model's output, not the source data.
 
@@ -68,7 +72,7 @@ Rules for the repo:
 
 The resume entry this project backs is in §10. It was written before the project was built.
 
-- Don't rename the project, its repo (`github.com/SudevOP1/FPLense`) or the headline tech stack (**Python, DuckDB, LightGBM, scikit-learn, SHAP, PuLP, Streamlit**) without updating the resume too.
+- Don't rename the project, its repo (`github.com/SudevOP1/FPLense`) or the headline tech stack (**Python, DuckDB, LightGBM, scikit-learn, SHAP, PuLP, FastAPI, React**) without updating the resume too. (Changed 2026-10-09: Streamlit → FastAPI + React. §10 is updated; **update the ML resume's compact entry to match.**)
 - Every number in §10 is either a **design fact** you must actually build (250K+ rows, 10 seasons, 30+ features, £100m / quotas / 3-per-club) or a **VERIFY** number you must measure (the ~10% MAE cut; see §9). After building, replace targets with measured values; never the other way round.
 - The same project also appears as a compact entry on the ML resume, with the same ~10% MAE target. Keep the two resumes' numbers identical.
 - The resume says "refreshed weekly by GitHub Actions". The workflow runs a daily check that only refreshes once per gameweek (i.e. roughly weekly, before each deadline). That matches the claim; don't change it to a plain weekly cron that can miss midweek deadlines.
@@ -82,7 +86,7 @@ The resume entry this project backs is in §10. It was written before the projec
 
 ## 1. Pitch (one paragraph)
 
-FPLense predicts how many FPL points every Premier League player will score in the next gameweeks and then picks the mathematically best squad. A Python ETL merges **10 seasons of historical player-gameweek data (250K+ rows)** with the **official FPL API**. **DuckDB SQL window-function views** build 30+ leakage-safe features (rolling form, minutes, xG/xA, fixture difficulty, and opponent strength from team form, **pre-match bookmaker odds and club Elo ratings**). A **LightGBM regressor**, validated **walk-forward like a real forecast** against a rolling-form baseline and a Ridge regression, produces the predictions, and **SHAP** explains each one. A **PuLP integer linear program** then picks the best 15-man squad under the £100m budget, position quotas and the 3-per-club rule, and a transfer planner recommends moves. A **Streamlit** app shows all of it, and **GitHub Actions** refreshes it before every gameweek deadline. It's a full DS loop: framing, data, features, validation, explainability, a decision layer and deployment.
+FPLense predicts how many FPL points every Premier League player will score in the next gameweeks and then picks the mathematically best squad. A Python ETL merges **10 seasons of historical player-gameweek data (250K+ rows)** with the **official FPL API**. **DuckDB SQL window-function views** build 30+ leakage-safe features (rolling form, minutes, xG/xA, fixture difficulty, and opponent strength from team form, **pre-match bookmaker odds and club Elo ratings**). A **LightGBM regressor**, validated **walk-forward like a real forecast** against a rolling-form baseline and a Ridge regression, produces the predictions, and **SHAP** explains each one. A **PuLP integer linear program** then picks the best 15-man squad under the £100m budget, position quotas and the 3-per-club rule, and a transfer planner recommends moves. A **FastAPI** backend serves it to a **React** web app where anyone can see the best team on an interactive pitch, replay the season (the model's pick vs the hindsight-best team every gameweek), load their own FPL team, compare up to 3 teams side by side, share teams as copy-paste codes and get transfer suggestions. **GitHub Actions** refreshes it before every gameweek deadline. It's a full DS loop: framing, data, features, validation, explainability, a decision layer and a deployed product.
 
 ## 2. Why it matters for DS / DA hiring
 
@@ -95,21 +99,23 @@ FPLense predicts how many FPL points every Premier League player will score in t
 | Model evaluation / statistics                     | MAE, RMSE, Spearman rank correlation, top-k precision, calibration, bootstrap CIs |
 | Explainability                                    | SHAP global (beeswarm) and local (waterfall per player)                           |
 | Optimization / decision science                   | Integer linear program (PuLP + CBC) and a transfer recommender with hit costs     |
-| Data visualization, dashboards                    | Matplotlib/Seaborn EDA, Plotly charts in Streamlit                                |
-| ETL, automation, deployment, Git                  | Scheduled GitHub Actions refresh, pytest, Streamlit Cloud                         |
+| Data visualization, dashboards                    | Matplotlib/Seaborn EDA, interactive Recharts charts in the React app              |
+| APIs, full-stack delivery                         | FastAPI (typed pydantic schemas, OpenAPI docs), React + TypeScript frontend       |
+| ETL, automation, deployment, Git                  | Scheduled GitHub Actions refresh, pytest + Vitest, Render + Vercel deploys        |
 
-RetailPulse shows the analyst/BI half. FPLense shows the modelling half and gives you a **live link** recruiters can click.
+RetailPulse shows the analyst/BI half. FPLense shows the modelling half and gives you a **live link** recruiters can click (and play with).
 
 ## 3. Data: sources and verified facts
 
 ### Data at a glance
 
-| #   | Dataset                                     | Where                                                                                                                                           | Licence / terms                                          | Role                                                                       | How I checked it (2026-10-07)                                     |
-| --- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| 1   | **vaastav/Fantasy-Premier-League**          | GitHub: https://github.com/vaastav/Fantasy-Premier-League                                                                                       | Public repo; cite it as its README asks                  | **Training data.** 10 seasons of per-fixture FPL player rows (253,900)     | Downloaded every season and counted (§3a)                         |
-| 2   | **Official FPL API**                        | `fantasy.premierleague.com/api/…` (no key)                                                                                                      | Unofficial and undocumented; personal/non-commercial use | **Live data** for 2026-27: current history, prices, availability, fixtures | Endpoint list cross-checked; fields to confirm in P1 (§3b)        |
-| 3   | **football-data.co.uk Premier League CSVs** | `https://www.football-data.co.uk/mmz4281/<season>/E0.csv` (e.g. `2526`) and `https://www.football-data.co.uk/fixtures.csv` for upcoming matches | Free; attribute the site                                 | Pre-match bookmaker odds → implied team goals and clean-sheet probability  | Fetched every season file and counted rows and odds columns (§3e) |
-| 4   | **Club Football Match Data (2000–2025)**    | Kaggle `adamgbor/club-football-match-data-2000-2025`                                                                                            | MIT                                                      | ClubElo team ratings (`EloRatings.csv`)                                    | Kaggle metadata and column stats checked (§3e)                    |
+| #   | Dataset                                           | Where                                                                                                                                           | Licence / terms                                          | Role                                                                            | How I checked it (2026-10-07)                                     |
+| --- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| 1   | **vaastav/Fantasy-Premier-League**                | GitHub: https://github.com/vaastav/Fantasy-Premier-League                                                                                       | Public repo; cite it as its README asks                  | **Training data.** 10 seasons of per-fixture FPL player rows (253,900)          | Downloaded every season and counted (§3a)                         |
+| 2   | **Official FPL API**                              | `fantasy.premierleague.com/api/…` (no key)                                                                                                      | Unofficial and undocumented; personal/non-commercial use | **Live data** for 2026-27: current history, prices, availability, fixtures      | Endpoint list cross-checked; fields to confirm in P1 (§3b)        |
+| 3   | **football-data.co.uk Premier League CSVs**       | `https://www.football-data.co.uk/mmz4281/<season>/E0.csv` (e.g. `2526`) and `https://www.football-data.co.uk/fixtures.csv` for upcoming matches | Free; attribute the site                                 | Pre-match bookmaker odds → implied team goals and clean-sheet probability       | Fetched every season file and counted rows and odds columns (§3e) |
+| 4   | **Club Football Match Data (2000–2025)**          | Kaggle `adamgbor/club-football-match-data-2000-2025`                                                                                            | MIT                                                      | ClubElo team ratings (`EloRatings.csv`)                                         | Kaggle metadata and column stats checked (§3e)                    |
+| 5   | **EA SPORTS FC 26 player ratings** (display only) | A Kaggle FC 26 ratings dataset, chosen in P6                                                                                                    | Check in P6 (§0.3)                                       | The "card rating" shown on player cards in the web app. **Not a model feature** | To do in P6                                                       |
 
 Why not a Kaggle FPL dataset for training? I checked the active ones (§3f). They are season-to-date snapshots, not per-gameweek history, so the vaastav repo stays the training source.
 
@@ -144,13 +150,16 @@ More facts:
 
 ### 3b. Live data: official FPL API (no key needed; send a browser-like `User-Agent`)
 
-| Endpoint                                                                  | Use                                                                                                                                                                                              |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `https://fantasy.premierleague.com/api/bootstrap-static/`                 | players (`elements`: id, web*name, team, element_type, now_cost, status, chance_of_playing_next_round, selected_by_percent, ep_next), teams (strength*\* ratings), events (deadlines, `is_next`) |
-| `https://fantasy.premierleague.com/api/fixtures/` (`?event=GW`)           | all fixtures with `team_h_difficulty` / `team_a_difficulty`                                                                                                                                      |
-| `https://fantasy.premierleague.com/api/element-summary/{id}/`             | `history` (this season's per-fixture rows, same fields as vaastav), `fixtures` (upcoming), `history_past` (previous-season totals, for cold-start features)                                      |
-| `https://fantasy.premierleague.com/api/event/{gw}/live/`                  | all players' stats for one GW in one call (cheaper refresh)                                                                                                                                      |
-| `https://fantasy.premierleague.com/api/entry/{team_id}/event/{gw}/picks/` | a public team's 15 picks, for the transfer planner                                                                                                                                               |
+| Endpoint                                                                  | Use                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `https://fantasy.premierleague.com/api/bootstrap-static/`                 | players (`elements`: id, web*name, team, element_type, now_cost, status, chance_of_playing_next_round, selected_by_percent, ep_next), teams (strength*\* ratings), events (deadlines, `is_next`)                                                                                   |
+| `https://fantasy.premierleague.com/api/fixtures/` (`?event=GW`)           | all fixtures with `team_h_difficulty` / `team_a_difficulty`                                                                                                                                                                                                                        |
+| `https://fantasy.premierleague.com/api/element-summary/{id}/`             | `history` (this season's per-fixture rows, same fields as vaastav), `fixtures` (upcoming), `history_past` (previous-season totals, for cold-start features)                                                                                                                        |
+| `https://fantasy.premierleague.com/api/event/{gw}/live/`                  | all players' stats for one GW in one call (cheaper refresh)                                                                                                                                                                                                                        |
+| `https://fantasy.premierleague.com/api/entry/{team_id}/event/{gw}/picks/` | a public team's 15 picks, captain/vice and `entry_history` (bank, value, points) for one GW: transfer planner, My Team and past-GW comparisons (P6)                                                                                                                                |
+| `https://fantasy.premierleague.com/api/entry/{team_id}/`                  | team name, manager name, overall rank, `current_event` (My Team header, P6)                                                                                                                                                                                                        |
+| `https://fantasy.premierleague.com/api/entry/{team_id}/history/`          | per-GW points, rank, bank, value, transfers and hits, plus `chips` used (My Team season chart, P6)                                                                                                                                                                                 |
+| Player photos (CDN, not the API)                                          | `https://resources.premierleague.com/premierleague25/photos/players/110x140/{code}.png`, where `code` is the bootstrap `elements[].code` (not `id`). **Confirm the path in P6**; the CDN folder name has changed between seasons. Hotlinked by the browser, never re-hosted (§0.3) |
 
 The API is undocumented and can change, so wrap every call in retries and schema checks. **Confirm the response fields in P1** and save samples to `tests/fixtures/`.
 
@@ -226,17 +235,19 @@ Takeaways:
 
 ## 4. Tech stack
 
-| Layer           | Tool                                                                 | Notes                                                                                                                                                                                                                    |
-| --------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| ETL             | Python 3.12, `requests` (with retry/backoff), pandas, pyarrow        | Raw JSON/CSV → Parquet in `data/lake/`                                                                                                                                                                                   |
-| Feature store   | **DuckDB** (embedded, file `data/fplense.duckdb`)                    | SQL views with window functions; reads Parquet directly                                                                                                                                                                  |
-| Modelling       | scikit-learn (Ridge, pipelines, metrics), **LightGBM**, SciPy, NumPy | LightGBM handles NaN natively, which matters for missing xG and DEFCON in old seasons                                                                                                                                    |
-| Explainability  | **SHAP** (`TreeExplainer`)                                           |                                                                                                                                                                                                                          |
-| Optimization    | **PuLP 3.x** with its bundled **CBC** solver                         | **Pin `pulp>=3.3,<4`.** PuLP 3.x bundles CBC (Windows included) and keeps the classic `LpVariable.dicts` API. PuLP 4.0 dropped both (on 4.x: `pip install highspy`, `m.add_variable_dict(...)`, `pulp.HiGHS(msg=False)`) |
-| EDA / reporting | Jupyter, Matplotlib, Seaborn                                         |                                                                                                                                                                                                                          |
-| App             | **Streamlit** + Plotly                                               | Deployed on Streamlit Community Cloud from GitHub                                                                                                                                                                        |
-| Automation      | **GitHub Actions** (cron + manual dispatch)                          | Commits refreshed predictions to `data/published/`                                                                                                                                                                       |
-| Quality         | pytest, ruff                                                         | Leakage test, optimizer-constraint tests, ETL schema tests                                                                                                                                                               |
+| Layer           | Tool                                                                                                                              | Notes                                                                                                                                                                                                                    |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ETL             | Python 3.12, `requests` (with retry/backoff), pandas, pyarrow                                                                     | Raw JSON/CSV → Parquet in `data/lake/`                                                                                                                                                                                   |
+| Feature store   | **DuckDB** (embedded, file `data/fplense.duckdb`)                                                                                 | SQL views with window functions; reads Parquet directly                                                                                                                                                                  |
+| Modelling       | scikit-learn (Ridge, pipelines, metrics), **LightGBM**, SciPy, NumPy                                                              | LightGBM handles NaN natively, which matters for missing xG and DEFCON in old seasons                                                                                                                                    |
+| Explainability  | **SHAP** (`TreeExplainer`)                                                                                                        |                                                                                                                                                                                                                          |
+| Optimization    | **PuLP 3.x** with its bundled **CBC** solver                                                                                      | **Pin `pulp>=3.3,<4`.** PuLP 3.x bundles CBC (Windows included) and keeps the classic `LpVariable.dicts` API. PuLP 4.0 dropped both (on 4.x: `pip install highspy`, `m.add_variable_dict(...)`, `pulp.HiGHS(msg=False)`) |
+| EDA / reporting | Jupyter, Matplotlib, Seaborn                                                                                                      |                                                                                                                                                                                                                          |
+| Backend API     | **FastAPI** + pydantic v2 + uvicorn, `httpx` for the FPL proxy                                                                    | Reads `data/published/`, solves the ILP / planner on request, proxies and caches public FPL team calls. Deployed on Render (free web service, Docker or native Python)                                                   |
+| Frontend        | **React 18 + TypeScript + Vite**, Tailwind CSS, TanStack Query, React Router, `@dnd-kit` (drag and drop), Recharts, Framer Motion | Static build deployed on Vercel. Light/dark themes, mobile-first, WCAG 2.1 AA                                                                                                                                            |
+| Name matching   | `rapidfuzz`                                                                                                                       | FPL players ↔ EA FC ratings (P6), plus a hand-kept overrides CSV                                                                                                                                                         |
+| Automation      | **GitHub Actions** (cron + manual dispatch)                                                                                       | Commits refreshed predictions to `data/published/`                                                                                                                                                                       |
+| Quality         | pytest, ruff; Vitest + React Testing Library + MSW + `vitest-axe`, ESLint, `tsc`                                                  | Leakage test, optimizer-constraint tests, ETL schema tests, API contract tests, component and accessibility tests                                                                                                        |
 
 ## 5. Architecture
 
@@ -258,10 +269,19 @@ flowchart LR
   D --> P[predict.py<br/>next N GWs per player]
   M --> P
   P --> O[optimize/squad_ilp.py<br/>optimize/transfers.py - PuLP]
-  P --> S[Streamlit app<br/>4 pages]
-  O --> S
-  G[GitHub Actions daily check<br/>refreshes once per GW, before deadline] -->|refresh, predict, test, commit| P
+  P --> H[models/history.py<br/>frozen per-GW predictions,<br/>hindsight-best squads, actuals]
+  P --> PUB[(data/published/<br/>committed artifacts)]
+  O --> PUB
+  H --> PUB
+  PUB --> API[FastAPI backend<br/>src/fPLense/api - Render]
+  O -->|live ILP / planner on request| API
+  A -.->|entry, history, picks<br/>proxied + cached| API
+  API -->|JSON| WEB[React app - Vercel<br/>pitch, history, my team,<br/>compare, builder, planner]
+  CDN[PL photo CDN] -.->|img hotlink| WEB
+  G[GitHub Actions daily check<br/>refreshes once per GW, before deadline] -->|refresh, predict, history, test, commit| P
 ```
+
+**Runtime rule:** the backend never runs the ETL, DuckDB build or model at request time. It reads `data/published/` (loaded once at start-up and reloaded when the files change), solves the ILP / planner on request (~1–5 s), and makes **only** user-triggered calls to the public FPL `entry/*` endpoints (cached, rate-limited). The browser never calls the FPL API directly (no CORS there, and the backend enforces the polite request rate).
 
 ## 6. Repository structure
 
@@ -269,9 +289,11 @@ flowchart LR
 FPLense/
 ├── README.md  PLAN.md  PROGRESS.md  DECISIONS.md  CLAUDE.md  LICENSE
 ├── requirements.txt          # pandas pyarrow duckdb requests lightgbm scikit-learn scipy shap "pulp>=3.3,<4"
-│                             # streamlit plotly matplotlib seaborn kaggle jupyter pytest ruff
+│                             # fastapi uvicorn[standard] httpx rapidfuzz matplotlib seaborn kaggle jupyter pytest ruff
+├── requirements-api.txt      # P8: runtime subset for the deployed API (no lightgbm/shap/jupyter/kaggle)
 ├── pyproject.toml            # package "fPLense" (src layout), ruff + pytest config
-├── .github/workflows/refresh.yml
+├── Dockerfile                # backend image for Render (P8)
+├── .github/workflows/refresh.yml  ci.yml
 ├── src/fPLense/
 │   ├── config.py             # seasons, paths, FEATURES list, horizon, bench weight
 │   ├── etl/
@@ -292,38 +314,63 @@ FPLense/
 │   │   ├── walk_forward.py   # expanding-window CV by gameweek
 │   │   ├── evaluate.py       # MAE/RMSE/Spearman/top-k, bootstrap CI, plots
 │   │   ├── explain.py        # SHAP values, beeswarm, waterfalls
-│   │   └── predict.py        # next-N-GW expected points per player
+│   │   ├── predict.py        # next-N-GW expected points per player
+│   │   └── history.py        # P6: frozen per-GW prediction archive, as-of backfill, actuals
 │   ├── optimize/
-│   │   ├── squad_ilp.py
-│   │   └── transfers.py
-│   └── pipeline.py           # CLI: --refresh --build --train --predict --horizon N
-├── app/
-│   ├── Home.py
-│   └── pages/  1_Projections.py  2_Optimal_Squad.py  3_Transfer_Planner.py  4_Model_Card.py
+│   │   ├── squad_ilp.py      # + locked-in / banned players (P6)
+│   │   ├── transfers.py      # + target squad, T up to 5 (P6)
+│   │   └── hindsight.py      # P6: best legal squad on ACTUAL points per finished GW
+│   ├── etl/ratings.py        # P6: EA FC ratings → FPL id match (rapidfuzz + overrides CSV)
+│   ├── team_code.py          # P6: shareable team codes (encode/decode, versioned)
+│   ├── api/                  # P6: FastAPI backend
+│   │   ├── main.py           # app factory, CORS, routers, /api/health
+│   │   ├── schemas.py        # pydantic request/response models
+│   │   ├── store.py          # loads data/published/ once, reloads when files change
+│   │   ├── fpl_proxy.py      # cached, rate-limited entry/history/picks calls
+│   │   └── routers/  meta.py  players.py  squads.py  history.py  entry.py  compare.py  transfers.py  codes.py
+│   └── pipeline.py           # CLI: --refresh --build --train --predict --history --ratings --horizon N
+├── web/                      # P7: React + TypeScript + Vite frontend
+│   ├── package.json  vite.config.ts  tailwind.config.ts  tsconfig.json  .eslintrc.cjs
+│   └── src/
+│       ├── main.tsx  App.tsx  routes.tsx  theme.css
+│       ├── api/      client.ts  types.ts (generated from /openapi.json)  hooks.ts (TanStack Query)
+│       ├── lib/      teamCode.ts  squadRules.ts  format.ts
+│       ├── components/  Pitch/  PlayerCard/  PlayerDrawer/  TeamSlot/  CodeBox/  charts/  GwPicker/  Toasts/
+│       ├── pages/    Home  BestTeam  SeasonReplay  MyTeam  Compare  Builder  Players  ModelCard  NotFound
+│       └── test/     msw handlers + fixtures (no network)
 ├── notebooks/  01_eda.ipynb  02_model_eval.ipynb  03_shap.ipynb  04_optimizer_backtest.ipynb
 ├── tests/      test_etl_schema.py  test_team_name_map.py  test_odds_features.py  test_no_leakage.py
 │               test_baselines.py  test_walk_forward.py  test_squad_constraints.py  test_transfers.py
-│               test_fetch_api.py  test_predict.py   fixtures/ (saved API samples)
+│               test_fetch_api.py  test_predict.py  test_history.py  test_hindsight.py  test_ratings.py
+│               test_team_code.py  test_api_*.py   fixtures/ (saved API samples, team_code_vectors.json,
+│               published_mini/ = a tiny synthetic published folder for API tests)
 ├── data/
 │   ├── raw/  lake/  fplense.duckdb   (all gitignored)
-│   └── published/   predictions_gwXX.parquet, squad_gwXX.json, metrics.json, model.txt  (small, committed)
+│   └── published/   predictions_gwXX.parquet, squad_gwXX.json, metrics.json, model.txt,
+│                    history/ (per-GW archive), actuals_2026-27.parquet, ratings.json  (small, committed)
 └── docs/        model_card.md  img/
 ```
+
+The Streamlit `app/` folder, `app/shared.py`, `tests/test_app_pages.py` and the `streamlit`/`plotly` requirements are **deleted in P6**. `src/fPLense/app_data.py` keeps its pure helpers (loaders, horizon recompute, waterfall data) and is renamed `src/fPLense/published.py` for the API to reuse.
 
 Tests that need the downloaded lake (row counts, the 3,800-fixture join, leakage rebuild) are marked `@pytest.mark.data` and **skip with a clear reason** when `data/lake/` is missing, so CI and fresh clones still pass on the pure-logic tests. `pytest -q -m data` runs them locally.
 
 ## 7. Phases
 
-| Phase  | Covers                                                  | Sessions (~3h) | Cumulative | Target dates (2026) | Done when (summary)                                                                  |
-| ------ | ------------------------------------------------------- | -------------: | ---------: | ------------------- | ------------------------------------------------------------------------------------ |
-| **P1** | Setup, API exploration, historical ETL                  |              2 |          2 | Oct 8 – Oct 14      | 10 seasons in Parquet, 253,900 rows, schema test green                               |
-| **P2** | Odds + Elo ETL, team-name map, DuckDB feature views     |            2.5 |        4.5 | Oct 15 – Oct 24     | 3,800/3,800 fixtures matched; `v_features` with 30+ features; **leakage test green** |
-| **P3** | EDA, baselines, LightGBM, walk-forward evaluation       |            3.5 |          8 | Oct 25 – Nov 5      | metrics table for 2025-26 GW5–38 with bootstrap CI; **measured MAE gain**            |
-| **P4** | SHAP, model card, squad ILP, transfer planner, backtest |              3 |         11 | Nov 6 – Nov 14      | beeswarm + waterfalls, `model_card.md`, constraint tests green                       |
-| **P5** | Live API path, predictions, 4-page Streamlit app        |              2 |         13 | Nov 15 – Nov 22     | 4 pages working locally on 2026-27 data                                              |
-| **P6** | GitHub Actions, deploy, README                          |            1.5 |       14.5 | Nov 23 – Nov 30     | public URL, one scheduled run succeeded, README complete                             |
+| Phase  | Covers                                                       | Sessions (~3h) | Cumulative | Target dates (2026) | Done when (summary)                                                                                          |
+| ------ | ------------------------------------------------------------ | -------------: | ---------: | ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **P1** | Setup, API exploration, historical ETL                       |              2 |          2 | Oct 8 – Oct 14      | 10 seasons in Parquet, 253,900 rows, schema test green                                                       |
+| **P2** | Odds + Elo ETL, team-name map, DuckDB feature views          |            2.5 |        4.5 | Oct 15 – Oct 24     | 3,800/3,800 fixtures matched; `v_features` with 30+ features; **leakage test green**                         |
+| **P3** | EDA, baselines, LightGBM, walk-forward evaluation            |            3.5 |          8 | Oct 25 – Nov 5      | metrics table for 2025-26 GW5–38 with bootstrap CI; **measured MAE gain**                                    |
+| **P4** | SHAP, model card, squad ILP, transfer planner, backtest      |              3 |         11 | Nov 6 – Nov 14      | beeswarm + waterfalls, `model_card.md`, constraint tests green                                               |
+| **P5** | Live API path, predictions, 4-page Streamlit app             |              2 |         13 | Nov 15 – Nov 22     | 4 pages working locally on 2026-27 data (app superseded by P6–P7)                                            |
+| **P6** | FastAPI backend, season-history archive, team codes, ratings |            2.5 |       15.5 | Oct 12 – Oct 22     | every endpoint contract-tested; GW1→now archive + hindsight squads published; Streamlit removed              |
+| **P7** | React frontend                                               |              4 |       19.5 | Oct 23 – Nov 15     | all 8 pages work against the local API (checked by the developer); Vitest + axe green; `npm run build` clean |
+| **P8** | GitHub Actions, deploy, README                               |            1.5 |         21 | Nov 16 – Nov 30     | public frontend + API URLs, one scheduled run succeeded, README complete                                     |
 
-If time runs short, cut in this order: the backtest (P4), the transfer planner page (P5; keep `transfers.py` and its tests, since the resume names the planner, so ship at least a minimal page), the EDA chart count (P3). **Never cut the walk-forward evaluation, the leakage test or the squad ILP.** These back the resume.
+(P1–P5 finished well ahead of their target dates, so P6–P8's dates are re-planned from 2026-10-09.)
+
+If time runs short, cut in this order: the backtest (P4); in P7, EA FC ratings (fall back to the FPLense rating), drag and drop (keep tap-to-swap, which is also the accessible path), the Players page and the third Compare slot (keep 2); the EDA chart count (P3). Keep `transfers.py` and a minimal transfer suggestions panel, since the resume names the planner. **Never cut the walk-forward evaluation, the leakage test or the squad ILP.** These back the resume.
 
 ## 8. Phase-by-phase tasks
 
@@ -540,7 +587,7 @@ Tested on a synthetic 750-player pool: CBC (PuLP 3.3.2) solves it in about 0.8 s
 
 **Done when:** beeswarm + 2 waterfalls + dependence plots saved, `model_card.md` written, constraint and transfer tests green, backtest table (or deferral noted).
 
-### P5: Live API path, predictions and Streamlit app (2 sessions)
+### P5: Live API path, predictions and Streamlit app (2 sessions) — app superseded by P6–P7
 
 **Build — live data**
 
@@ -553,7 +600,7 @@ Tested on a synthetic 750-player pool: CBC (PuLP 3.3.2) solves it in about 0.8 s
 2. `predict.py` builds feature rows for upcoming fixtures (rolling features from the latest history, fixture features from future fixtures), applies the model, sums per GW, multiplies by availability, and writes `data/published/predictions_gw{next}.parquet` (player, club, pos, price, p per GW for the horizon, P_h, top SHAP contributions, `odds_source`). It also runs the squad ILP with defaults and writes `squad_gw{next}.json`.
 3. `pipeline.py --refresh --predict --horizon N` runs the whole live path, exiting early (code 0) unless the next deadline is < 48h away and predictions for it don't exist yet (`--force` overrides).
 
-**Build — Streamlit pages** (`app/`). **The app reads only `data/published/`** (plus `fetch_picks` on the Transfer Planner when the user submits a team ID). It never refreshes the full API at page load. Use `st.cache_data` for Parquet loads.
+**Build — Streamlit pages** (`app/`). _Historical record: shipped in P5, deleted in P6 and replaced by the FastAPI + React app (P6–P7)._ **The app reads only `data/published/`** (plus `fetch_picks` on the Transfer Planner when the user submits a team ID). It never refreshes the full API at page load. Use `st.cache_data` for Parquet loads.
 
 - **Home:** pitch, next deadline, data freshness, links to pages and the repo.
 - **Projections:** filterable table (position, club, price range, minimum minutes), Plotly bar of the top 20 by P_h, per-player SHAP waterfall in an expander, odds/Elo source per fixture.
@@ -565,7 +612,158 @@ Tested on a synthetic 750-player pool: CBC (PuLP 3.3.2) solves it in about 0.8 s
 
 **Done when:** `python -m fPLense.pipeline --refresh --predict --horizon 5 --force` produces published files for the next GW, and all 4 pages work locally on 2026-27 data (checked by the developer).
 
-### P6: Automation, deploy and docs (1.5 sessions)
+### P6: FastAPI backend and season-history data layer (2.5 sessions)
+
+Goal: everything the web app needs, behind a typed, tested API. No UI in this phase. The backend reads `data/published/` and never runs the ETL, DuckDB build or model per request (§5 runtime rule).
+
+**Build — remove Streamlit**
+
+1. Delete `app/`, `tests/test_app_pages.py` and the `streamlit` / `plotly` requirements. Rename `src/fPLense/app_data.py` → `src/fPLense/published.py` (and `test_app_data.py` → `test_published.py`); its pure helpers (loaders, horizon recompute, waterfall data, pitch grouping) are reused by the API.
+2. Add `fastapi`, `uvicorn[standard]`, `httpx`, `rapidfuzz` to `requirements.txt`. Update `CLAUDE.md`, README stub and `DECISIONS.md` (why the switch: interactivity Streamlit can't do well, e.g. drag and drop, multi-team compare, shareable URLs; and a real API is a stronger full-stack signal).
+
+**Build — season-history archive** (`models/history.py`, `pipeline.py --history`)
+
+The Season Replay page and every past-GW comparison need, for each finished 2026-27 GW k: what the model predicted **before** GW k, the squad it would have picked, what actually happened, and the best squad in hindsight.
+
+1. **Frozen per-GW archive** `data/published/history/gw{k:02d}/`:
+   - `predictions.parquet`: per player: `element`, `code`, pos, club, price at GW k (integer tenths), `p` for GW k, `P_h` over the horizon, availability used.
+   - `squad_pred.json`: the model's best squad for GW k (default ILP settings: £100m, horizon 5, bench weight 0.1).
+   - `meta.json`: `made_at`, `model_sha256`, `model_train_max_season`, `source` = `"live"` | `"backfill"`.
+   - **Write-once:** an existing GW folder is never overwritten (only with `--force-history`), so a later retrain can never rewrite what the model "said" in the past. `--predict` writes `history/gw{next}` from its live output at the same time as `predictions_gw{next}.parquet`.
+2. **As-of backfill** for GWs that finished before the archive existed (2026-27 GW1–5): rebuild features from the lake **truncated to fixtures before GW k** (the same mechanism as the P2 leakage test), prices from that GW's `value`, odds = pre-closing 2026-27 `E0.csv` rows for that round when present, else the Elo fallback. Availability is unknown for past GWs, so backfilled rows use 100% and are labelled `source = "backfill"`; the UI shows a "backfilled" badge with that caveat. **Refuse to backfill** if `model_train_max_season >= 2026-27` (the model would have seen those outcomes).
+3. **Actuals** `data/published/actuals_2026-27.parquet`: per (element, gw): `total_points`, `minutes`, price, `fixtures_played`. `history/season.json`: per GW `average_entry_score` and `highest_score` from bootstrap `events`, deadlines, `finished`.
+4. **Hindsight-best squad** (`optimize/hindsight.py`): the same squad ILP with `p1 = P_h = actual GW-k points`, bench weight 0, that GW's real prices, £100m, 2-5-5-3, ≤3 per club; captain = best actual starter. Score = XI actual points + captain bonus. Write `history/gw{k:02d}/squad_hindsight.json`. This is "the best legal £100m team for that GW alone", **not** FPL's Dream Team (which ignores budget and quotas); say so in the UI tooltip.
+5. **Per-GW summary** `history/summary.json`: model pick expected points, model pick **actual** points (XI + captain, simplified auto-subs reused from `optimize/backtest.py`), hindsight-best points, average and highest manager score, and the **capture ratio** = model-pick actual / hindsight-best. This is a product stat for the app, **not a resume claim** (the P4 backtest already says the decision layer doesn't beat rolling form significantly).
+
+**Build — team codes** (`src/fPLense/team_code.py`): Clash-Royale-style copy-paste teams.
+
+- Payload: version byte, season (`2627`), the 15 FPL element ids as `uint16` in order (11 starters by position, then the 4 bench slots in bench order), one byte with captain and vice indices (4 bits each), and a CRC-8 checksum. Encoded as **Crockford base32** (case-insensitive, no `I/L/O/U`, survives chat apps) with a readable prefix: `FPLN-2627-…` (≈ 60 characters). Share URLs carry the same code: `/<route>?t=<code>`.
+- `decode` is forgiving on input (trims whitespace, any case, accepts a full share URL) and strict on content: bad checksum → `"looks like a typo"`; other season → `"this code is from 2025-26; player ids change every season"`; unknown ids, duplicates or broken 2-5-5-3 / 3-per-club → specific messages. **Budget is reported, not enforced** (real teams can be worth more than £100m after price rises).
+- `tests/fixtures/team_code_vectors.json`: shared test vectors that the P7 TypeScript implementation must match byte for byte.
+
+**Build — card ratings** (`etl/ratings.py`, `pipeline.py --ratings`)
+
+1. Pick a Kaggle EA SPORTS FC 26 player-ratings dataset; record its slug and licence in §0.3 / §3 and `DECISIONS.md`. Kaggle token handling as in §0.2.
+2. Match to FPL players by `code` (stable across seasons) using normalised names (strip accents, lower-case, drop punctuation; FPL `first_name`, `second_name`, `web_name`) **within the same club** (add an `eafc_name` column to `team_names.csv`), `rapidfuzz.token_set_ratio >= 90`, plus `etl/ratings_overrides.csv` for the stragglers. Never match across clubs.
+3. Publish `data/published/ratings.json` (`code → overall`) only if the licence allows it (else the app uses the FPLense rating only). Report the match rate among players with minutes > 0 (aim ≥ 90%; write the measured value).
+4. **FPLense rating** (always available, always labelled as ours): `50 + 49 × percentile of P_h within position` among available players, rounded. Card shows the EA FC rating when matched, else the FPLense rating, with a small label saying which.
+5. Photos: `photo_url` built from `code` per §3b. The backend only builds the URL; it never downloads images.
+
+**Build — optimizer extensions**
+
+- `squad_ilp.pick_squad(..., locked=set(), banned=set())`: `x_i = 1` / `x_i = 0`; an infeasible lock set raises an error that names the cause (budget, quota or club limit).
+- `squad_ilp.best_lineup(squad, preds)`: XI, bench order, captain and vice for a **fixed** 15 (the "lineup helper").
+- `squad_ilp.evaluate(squad, xi=None, captain=None, gw=…)`: expected points per GW over the horizon, cost, rule report; actual points if the GW is finished.
+- `transfers.plan(...)`: T up to 5, and a **target mode** "path to a target squad" (usually the model's best team): `in_i` restricted to `S* \ S0`, `out_i` to `S0 \ S*`, solved for T = 1…|S0 \ S\*| so each extra move shows its marginal expected gain. Output: ordered moves, cumulative gain, hit cost, and a plain recommendation ("make 2 now with your free transfers; the other 3 are worth −4 only if…"). Same selling-price caveat as P4.
+
+**Build — FastAPI** (`src/fPLense/api/`; `uvicorn fPLense.api.main:app`; OpenAPI at `/docs`)
+
+| Method + path                                        | Returns                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/health`                                    | status, next GW, published-data timestamp                                                                                                                                                                                                                                                                                                    |
+| `GET /api/meta`                                      | season, current / next GW, deadline (UTC), finished GWs, which GWs are backfilled, model metrics summary                                                                                                                                                                                                                                     |
+| `GET /api/players?gw=`                               | every player: id, `code`, name, pos, club, price, availability + news, `photo_url`, rating (+ source), `p` per GW, `P_h`, next-5 fixtures with FDR                                                                                                                                                                                           |
+| `GET /api/players/{id}`                              | player detail: per-GW expected vs actual this season, SHAP top contributions, fixtures, ownership                                                                                                                                                                                                                                            |
+| `GET /api/squads/best?gw=`                           | the archived model pick for a past GW, or the live best team for the next GW                                                                                                                                                                                                                                                                 |
+| `POST /api/squads/optimize`                          | live ILP with budget, horizon, bench weight, `locked`, `banned`                                                                                                                                                                                                                                                                              |
+| `POST /api/squads/evaluate`                          | expected / actual points, cost, rule report for any 15 (+ optional XI, captain)                                                                                                                                                                                                                                                              |
+| `GET /api/history/summary` · `GET /api/history/{gw}` | per-GW season summary · model pick + hindsight-best + both scores for one GW                                                                                                                                                                                                                                                                 |
+| `GET /api/entry/{team_id}`                           | team + manager name, overall rank, value, bank, per-GW history (points, rank, transfers, hits, chips) joined with model-pick / hindsight / average points                                                                                                                                                                                    |
+| `GET /api/entry/{team_id}/gw/{gw}`                   | that GW's picks resolved to players, expected (from the frozen archive) and actual points, lineup-helper suggestion                                                                                                                                                                                                                          |
+| `POST /api/transfers/plan`                           | T = 0…5 options and target-mode path (team id or explicit squad, bank, free transfers)                                                                                                                                                                                                                                                       |
+| `POST /api/compare`                                  | 2–3 slots, each `{kind: entry \| model_pick \| hindsight \| code \| squad, gw, value}` with its own GW → per slot: resolved squad, XI / bench / captain, expected + actual points, cost, points by position, captain points, bench points; across slots: shared players, differentials, per-GW expected points over the horizon (for charts) |
+| `POST /api/codes/decode` · `POST /api/codes/encode`  | team code ↔ squad, with the validation messages above                                                                                                                                                                                                                                                                                        |
+
+- **FPL proxy** (`fpl_proxy.py`): async `httpx` with the browser-like UA, one global limiter spacing calls ≥ 0.25 s, retries with backoff, schema checks against the saved samples. TTL cache: `entry` and `history` 10 min; picks for **finished** GWs cached indefinitely (LRU); current GW 10 min. Upstream 404 → our 404 "No FPL team with ID …"; FPL "game is updating" 503 → our 503 with a friendly retry hint.
+- **Protection for the free tier:** `team_id` validated as a positive int; a per-IP token bucket on `/entry/*`, `/optimize`, `/transfers/*` and `/compare` (429 with `Retry-After`); request timeouts; CORS limited to `FPLENSE_CORS_ORIGINS` (env).
+- `store.py` loads published files once and reloads when their mtime changes; responses from published data send `Cache-Control: max-age=300` and an `ETag`.
+- **Keep the API import-light**: no `lightgbm`, `shap` or `duckdb` import on the request path (free hosts have ~512 MB RAM).
+- `python -m fPLense.api.export_openapi` writes `web/openapi.json` without starting a server; P7 generates TypeScript types from it.
+
+**Tests** (all offline; a tiny synthetic `tests/fixtures/published_mini/` and `httpx.MockTransport` for FPL calls)
+
+- `test_history.py`: write-once archive (a second write raises unless forced); as-of backfill on a synthetic mini-lake equals features built from the truncated lake; backfill refuses when the model saw the target season; `source` labels.
+- `test_hindsight.py`: hindsight squad is legal; its actual score ≥ the model pick and ≥ 50 random legal squads on a synthetic pool; captain = best actual starter; capture ratio in [0, 1].
+- `test_team_code.py`: round trip on random legal squads; shared vectors; every single-character typo in a vector is caught; wrong season, duplicate ids, illegal shapes and junk input give the specific messages; case / whitespace / full-URL input accepted.
+- `test_ratings.py`: accent and punctuation normalisation (e.g. `Ødegaard`), overrides win, never matches across clubs, unmatched → FPLense rating fallback.
+- `test_squad_constraints.py` / `test_transfers.py` extended: locks and bans respected, infeasible locks give the named error; `best_lineup` legal; target mode only buys from `S*`, sells from `S0 \ S*`, and its cumulative gain is non-decreasing in free moves.
+- `test_api_*.py` (FastAPI `TestClient`): status codes and response schemas for every endpoint; 404 / 422 / 429 / 503 paths; a cached picks call doesn't hit upstream twice; compare accepts 2 and 3 slots and rejects 1 and 4; CORS header only for allowed origins; `web/openapi.json` equals `app.openapi()` (no drift).
+
+**Done when:** `ruff` + `pytest -q` green; no `streamlit` import left; `python -m fPLense.pipeline --history` publishes GW1 → last finished GW (archive, actuals, hindsight squads, summary); `--ratings` publishes ratings or records why not; the developer opens `/docs` locally and tries `/api/entry/{their id}`. Measured and written to `PROGRESS.md`: archive size, number of backfilled vs live GWs, ratings match rate, capture ratio per GW (product stat only), p95 latency of `/optimize` and `/transfers/plan` locally.
+
+### P7: React frontend (4 sessions)
+
+Goal: a clean, minimal, modern, **playful** web app that a first-time FPL player can use without instructions. Lives in `web/` (Vite + React 18 + TypeScript). Talks only to the P6 API (`VITE_API_URL`). Types generated from `web/openapi.json` with `openapi-typescript`.
+
+**Design system**
+
+- Tokens as CSS variables (colour, spacing, radius, shadow, motion) with light and dark themes (system default + toggle). Tailwind for layout. One display font for numbers (points, ratings, prices), one clean sans for text.
+- **Pitch:** grass gradient with subtle mowing stripes; formation rows built from the XI (e.g. 3-5-2); bench strip below with bench order numbers.
+- **Player card** (mini FUT-card feel): photo (hotlinked, lazy-loaded, silhouette fallback on error), rating badge (EA FC or FPLense, labelled), `web_name`, club colour strip, price, and a points chip (expected for future GWs, actual for finished ones, both on hover). Captain / vice armbands; injury / doubt flag with the news text.
+- **Playful but calm:** see "Motion" and "Details" below; motion supports meaning and never just decorates.
+- **Compare colours:** slots A / B / C use a colour-blind-safe trio and **always carry the letter** too (never colour alone).
+- Skeleton loaders, friendly empty states, toasts, error boundaries per page. A first-visit 3-step tour (dismissable, remembered in `localStorage`).
+
+**Motion (minimal, purposeful)** — Framer Motion, defined once in `web/src/lib/motion.ts`:
+
+- **Tokens:** durations `fast 120 ms` (hover, press), `base 200 ms` (state changes), `slow 320 ms` (page / layout); one standard ease-out curve and one gentle spring (`stiffness ≈ 400, damping ≈ 30`, no visible bounce-back). No animation longer than 400 ms; nothing loops except loading shimmers.
+- **Only animate `transform` and `opacity`** (GPU-friendly, no layout jank); 60 fps on a mid-range phone.
+- **Where motion is used, and why:**
+  - Cards deal onto the pitch with a 25 ms stagger, GK → FWD (shows the formation building).
+  - Swaps, substitutions and drag-and-drop use shared-layout animation (`layoutId`), so a player visibly **travels** from bench to pitch or from list to slot instead of blinking.
+  - Re-solving the optimizer: outgoing players fade/slide down, incoming slide up; unchanged players stay perfectly still (the eye goes only to what changed).
+  - Numbers (points, money left, ranks) count up/down over 300 ms with tabular figures, so digits don't jitter.
+  - Captain armband pops in with a tiny scale (0.8 → 1); copy button morphs to a ✓ for 1.5 s.
+  - GW scrubber: pitches cross-fade, points chips roll to new values; charts draw their lines once on first view, not on every re-render.
+  - Rule-chip turns red with a single 2-px shake on a violation (never repeating); turns green with a soft fade.
+  - Page transitions: 150 ms fade + 4 px rise; tabs use a sliding underline indicator.
+  - One celebratory moment only: a small confetti burst when you apply a transfer plan or your team beats the model pick that GW (max once per session per event).
+- **`prefers-reduced-motion`:** every animation drops to an instant change or a plain opacity fade; confetti and count-ups are disabled. Also a "Reduce motion" toggle in settings.
+
+**Details (the polish checklist; each one is a P7 acceptance item)**
+
+- **Typography:** tabular numerals everywhere numbers align (`font-variant-numeric: tabular-nums`); prices always `£5.5m`, points to 1 decimal for expected and integers for actual; consistent sign and colour for deltas (`+2.4` green, `−4` red, with the sign, not colour alone).
+- **Spacing and shape:** 4-px spacing scale, one radius scale, one elevation scale; aligned baselines on cards; no orphan words in headings (`text-wrap: balance`).
+- **States for everything:** every interactive element has hover, focus-visible, active and disabled styles; every data view has loading (skeleton matching the final layout, so nothing jumps), empty (friendly line + next action), error (what went wrong + retry) and partial (e.g. 2 of 3 compare slots filled) states.
+- **No layout shift:** images reserve their box (`aspect-ratio`), skeletons match real sizes, fonts preloaded with `font-display: swap` and metric-matched fallbacks.
+- **Optimistic and instant:** client-side rule checks respond on the same frame; server confirms in the background; buttons show inline spinners, never full-page blockers; requests in flight are cancelled when inputs change.
+- **Microcopy:** short, human, consistent verbs ("Copy code", "Load team", "Compare"); tooltips explain jargon (P_h, capture ratio, hindsight-best, backfilled) in one line; times shown in the viewer's local timezone with a relative hint ("Sat 11:00 · in 2 days").
+- **Small touches:** club colours on card strips; player photo fallback silhouette tinted with the club colour; long names truncated with full name on hover / in `title`; deadline countdown turns amber < 24 h and red < 1 h; keyboard shortcut hints shown in tooltips; favicon + page titles update per route ("Compare · FPLense"); Open Graph image for shared links; scroll position restored on back navigation; sticky summary bar on long pages on mobile; tap targets ≥ 44 px.
+- **Consistency audit:** a `/dev/kitchen-sink` route (dev builds only) renders every component in every state in both themes, used to eyeball details before the phase ends.
+
+**Navigation:** top bar on desktop, bottom tab bar on mobile (Home · Best Team · Season · My Team · Compare, with Builder / Players / Model under "More"). **Global player search** on `/` or `Ctrl/⌘ K`. A persistent **compare tray**: "Add to compare" on any team (best team, a season GW, your team at a GW, a builder draft) drops it into a bottom tray of up to 3; "Compare" opens them. Every page state lives in the URL (GW, slots, codes), so any view can be shared.
+
+**Pages**
+
+1. **Home** (`/`): next GW and a live deadline countdown; the current best XI on a pitch; three big entry cards (See the best team · Load my team · Replay the season); top 5 captain picks; last-GW recap ("model pick 61 · best possible 112 · average 48").
+2. **Best Team** (`/best`): pitch + bench, captain / vice; total expected points, cost, money left; a per-player mini bar of expected points per GW over the horizon. Controls drawer: budget, horizon 1–5, bench weight; **lock / ban** from any card's menu; re-solve with a shimmer. Actions: copy code, share link, add to compare, open in Builder.
+3. **Season Replay** (`/season`): a GW scrubber (1 → last finished; arrow keys, swipe). For the selected GW: the model's pick and the hindsight-best team side by side, shared players highlighted, actual points on every card, a "backfilled" badge where relevant. Below: a season line chart (model pick actual, hindsight best, average manager, highest; per-GW or cumulative toggle) and a capture-ratio bar per GW. Clicking a GW in the chart moves the scrubber.
+4. **My Team** (`/me`, `/me/:teamId`): team ID input with a "where do I find my ID?" helper (shows where it sits in the FPL URL); last ID remembered locally. Header: team name, overall rank, value, bank. Current squad on the pitch with expected points for the next GW; **lineup helper** (suggested XI + captain from your 15, changes highlighted). Season chart: your points vs model pick vs hindsight best vs average, with your rank on a second axis and chip weeks marked. Pick any past GW → "Compare this week" opens Compare with your team, the model pick and the hindsight best for that GW.
+5. **Transfers** (panel in My Team, also `/me/:teamId/transfers`): bank (prefilled), free transfers (user-entered, with a hint), max hits. Options T = 0…5 as OUT → IN card pairs with photos, Δ expected points, hit cost and net gain; the recommended option highlighted; a bar chart of net gain by number of transfers with the hit-cost line and the break-even marked. **"Path to the best team":** a stepper of ordered moves from your squad to the model's best squad with cumulative gain, telling you how many to make now and how many over the next weeks with free transfers. "Preview" shows the result on the pitch as ghost cards; then copy its code or send it to Compare / Builder. The selling-price caveat is visible.
+6. **Compare** (`/compare?t=…`): 2 or 3 slots. Each slot has a source picker (My team · Model pick · Hindsight best · Paste code · From Builder) and **its own GW picker**, so any GW can be compared with any other. Pitches side by side on desktop, a swipeable carousel on mobile. Shared players get a matching ring, differentials a badge. Summary cards per slot: expected points, actual points (if finished), cost, captain points, bench points. Charts: grouped bars of points by position; per-player contribution bars; expected vs actual dumbbell per team; expected points per GW over the horizon for future GWs. Reorder slots by drag, remove a slot, "copy all codes".
+7. **Builder** (`/builder?t=…`): pitch + searchable, filterable player list (position, club, price, sort by expected points / value / rating). **Drag a player onto a slot, or tap a slot then tap a player** (the tap path is also the keyboard / screen-reader path). Drag between XI and bench to swap; captain / vice from the card menu. Live rule chips (money left, 2-5-5-3, max 3 per club) with plain-English messages, checked instantly in `lib/squadRules.ts` and confirmed by a debounced `/api/squads/evaluate`. Expected points update live. Undo / redo (`Ctrl+Z` / `Ctrl+Shift+Z`). **"Auto-complete"** fills empty slots with the ILP (current picks locked). Import My Team, paste a code, reset.
+8. **Players** (`/players`): sortable table (photo, rating, price, position, club, availability, next-5 fixture ticker with FDR shown as number + colour, expected points per GW, `P_h`). Row → **player drawer**: expected vs actual points this season, a SHAP waterfall ("why the model thinks this"), upcoming fixtures, availability news, "add to Builder".
+9. **Model Card** (`/model`): metrics with CIs, MAE by GW, SHAP global importance, the honest backtest result, limitations, and a short "how it works" pipeline diagram. Plus a 404 page.
+
+**Copy-paste teams** (`components/CodeBox`, `lib/teamCode.ts`): every team view has a code box with one-click copy (Clipboard API with a select-all fallback) and a "Team code copied" toast. Paste fields accept a code or a share URL. On Compare and Builder, **pasting anywhere on the page** detects a code and asks "Load this team into slot B?". Invalid codes show the P6 messages inline. Optional: "Save as image" of a pitch (`html-to-image`) for sharing.
+
+**Accessibility and performance:** semantic landmarks and headings; visible focus; full keyboard use (dnd-kit `KeyboardSensor` + tap-to-swap); `aria-live` for rule chips and point totals; alt text on photos ("Photo of Bukayo Saka"); WCAG AA contrast in both themes; every chart has a visually hidden summary and a "show as table" toggle. Route-level code splitting, lazy images, TanStack Query caching (`staleTime` 5 min). A "waking up the server…" state with a progress hint when `/api/health` is slow (free-tier cold start, P8).
+
+**Tests** (Vitest + React Testing Library + MSW, no network; `vitest-axe` on every page)
+
+- `teamCode.test.ts`: matches `tests/fixtures/team_code_vectors.json` byte for byte; typo detection; URL input.
+- `squadRules.test.ts`: budget, quotas, 3-per-club, XI shape messages.
+- `Pitch.test.tsx`: XI rows follow the formation; bench order; captain / vice armbands; photo fallback on image error.
+- `Builder.test.tsx`: tap-to-swap places a player; a 4th player from one club shows the club message; undo / redo; auto-complete calls the API with the locks.
+- `Compare.test.tsx`: 2 and 3 slots; a 4th is refused; per-slot GW picker; pasting an invalid code shows the error; shared players highlighted.
+- `MyTeam.test.tsx`: submit a team ID → mocked API → pitch, chart and lineup helper render; unknown ID → friendly 404 message; 429 → retry hint.
+- `Transfers.test.tsx`: recommended option highlighted; hit cost shown; path-to-best stepper order.
+- `a11y.test.tsx`: no axe violations on each page in light and dark themes.
+- `motion.test.tsx`: with `prefers-reduced-motion: reduce` mocked, animated components render their final state immediately and no confetti / count-up runs; formatting helpers (`£5.5m`, `+2.4`, `−4`, local deadline text) unit-tested in `format.test.ts`.
+
+**Done when:** `npm run lint`, `npm run typecheck`, `npm test -- --run` and `npm run build` are clean, plus `ruff` and `pytest -q`; the developer runs the API and `npm run dev` and walks through every page with a real team ID on desktop and a phone-width window, with reduce-motion on and off, and ticks the "Details" checklist on the kitchen-sink route (checklist in the phase summary). Measured: bundle size (gzip) of the main chunk, test count.
+
+### P8: Automation, deploy and docs (1.5 sessions)
 
 `.github/workflows/refresh.yml` (use the latest major versions of the actions when building):
 
@@ -585,7 +783,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: "pip" }
       - run: pip install -r requirements.txt && pip install -e .
-      - run: python -m fPLense.pipeline --refresh --predict --horizon 5
+      - run: python -m fPLense.pipeline --refresh --predict --history --horizon 5
       - run: pytest -q
       - run: |
           git config user.name "fPLense-bot"
@@ -594,46 +792,55 @@ jobs:
           git diff --cached --quiet || (git commit -m "chore: refresh predictions" && git push)
 ```
 
-Also add a `ci.yml` running `ruff check .` and `pytest -q` on push. Retrain monthly, or on `--train`. Commit `model.txt` (LightGBM text format, a few MB).
+Also add a `ci.yml` on push with two jobs: **python** (`ruff check .`, `ruff format --check .`, `pytest -q`) and **web** (`actions/setup-node`, `npm ci`, `npm run lint`, `npm run typecheck`, `npm test -- --run`, `npm run build` in `web/`). Retrain monthly, or on `--train`; a retrain never touches `history/` (write-once, P6). Commit `model.txt` (LightGBM text format, a few MB).
+
+`--history` adds the GW that just finished to the archive (actuals, hindsight squad, summary) on the first run after it finishes, so the scheduled job also needs a cheap "a GW finished and isn't archived yet" trigger next to the deadline gate.
 
 The scheduled run needs the historical lake for rolling features. Either cache `data/lake/` with `actions/cache` keyed on the manifest hash, or have `--refresh` rebuild it (history download takes a minute or two).
 
-**Risk:** the FPL API sometimes blocks or rate-limits data-centre IPs. On HTTP 403/429, keep the workflow, add retries, and fall back to running `pipeline.py` locally with Windows Task Scheduler. Push the result; the app redeploys either way.
+**Risk:** the FPL API sometimes blocks or rate-limits data-centre IPs. On HTTP 403/429, keep the workflow, add retries, and fall back to running `pipeline.py` locally with Windows Task Scheduler. Push the result; the app redeploys either way. The same risk applies to the backend's `entry/*` proxy on Render: if FPL blocks it, My Team shows a clear "FPL is blocking our server right now" message and still lets the user paste a team code; record the outcome in `DECISIONS.md`.
 
-**Deploy:** Streamlit Community Cloud → New app → repo → `app/Home.py`. Put the URL in the README and on sudev.xyz.
+**Deploy**
+
+- **Backend → Render** (free web service): `Dockerfile` (Python 3.12 slim, `pip install -r requirements-api.txt` = the runtime subset without LightGBM / SHAP / Jupyter / Kaggle, `pip install -e .`), start command `uvicorn fPLense.api.main:app --host 0.0.0.0 --port $PORT`, health check `/api/health`, auto-deploy on push to `main` (so each committed refresh of `data/published/` goes live), env `FPLENSE_CORS_ORIGINS=<frontend URL>`. Free instances sleep after ~15 min idle; the frontend's "waking up" state covers the ~30–60 s cold start. Don't add keep-alive pings.
+- **Frontend → Vercel**: root `web/`, build `npm run build`, output `dist/`, env `VITE_API_URL=<Render URL>`, SPA rewrite of all paths to `index.html` so deep links (`/compare?t=…`) work.
+- Put both URLs in the README and on sudev.xyz. Run Lighthouse (mobile) on Home, My Team and Compare and record the scores.
 
 **README** — the §13 checklist.
 
-**Done when:** public URL live, ≥1 successful scheduled (or dispatched) run in the Actions tab, README complete, §9/§10 hold measured numbers.
+**Done when:** public frontend and API URLs live and talking to each other, ≥1 successful scheduled (or dispatched) run in the Actions tab that updates the live site, `ci.yml` green on both jobs, README complete, §9/§10 hold measured numbers.
 
 ## 9. How each resume number is measured and reported honestly
 
-| Resume claim                                                                           | Type          | How to measure                                                                                                                                                                                                                                                   | Evidence                        | Phase      |
-| -------------------------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ---------- |
-| 250K+ player-gameweek rows, 10 seasons                                                 | Dataset fact  | `select count(*) from v_player_match where season <= '2025-26'` = 253,900 (re-count after cleaning)                                                                                                                                                              | `test_etl_schema.py`            | P1         |
-| 30+ leakage-safe features                                                              | Design fact   | `len(config.FEATURES)` (42 planned); "leakage-safe" backed by `test_no_leakage.py`                                                                                                                                                                               | CI log                          | P2         |
-| rolling form, minutes, xG/xA, fixture difficulty, opponent strength                    | Design fact   | feature groups in §8 P2                                                                                                                                                                                                                                          | `config.py`, model card         | P2         |
-| DuckDB SQL window-function views over a Python ETL from the FPL API                    | Design fact   | `db/sql/*.sql`, `etl/`                                                                                                                                                                                                                                           | repo                            | P1, P2, P5 |
-| "Cut MAE by ~10% vs a rolling-form baseline" (measured **11.4%**, CI [10.2, 12.6], P3) | **VERIFY** ✅ | `(MAE_B0 − MAE_LGBM) / MAE_B0` on **regulars**, walk-forward 2025-26 GW5–38, with the bootstrap 95% CI. **Write your actual number** (e.g. "by 9%"). If it's under 5%, or the CI crosses 0, rewrite the bullet around the system (features + ILP), not the gain. | `metrics.json`, Model Card page | P3         |
-| validated walk-forward, explained with SHAP                                            | Design        | `walk_forward.py`; SHAP plots                                                                                                                                                                                                                                    | notebooks 02/03                 | P3, P4     |
-| PuLP ILP, £100m, quotas, ≤3 per club, maximizing projected points                      | Design fact   | `test_squad_constraints.py`                                                                                                                                                                                                                                      | CI log                          | P4         |
-| transfer planner in Streamlit                                                          | Design fact   | Transfer Planner page                                                                                                                                                                                                                                            | live app                        | P4, P5     |
-| refreshed weekly by GitHub Actions                                                     | Design fact   | public URL, plus ≥1 successful scheduled run in the Actions tab                                                                                                                                                                                                  | README badge                    | P6         |
-| (optional) backtest points gain (measured P4: A−B **−75**, CI [−276, +118]; not claimed) | **VERIFY** ❌ | strategy A vs B total points, 2025-26 GW5–38 | notebook 04 | P4 |
+| Resume claim                                                                             | Type          | How to measure                                                                                                                                                                                                                                                   | Evidence                        | Phase      |
+| ---------------------------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ---------- |
+| 250K+ player-gameweek rows, 10 seasons                                                   | Dataset fact  | `select count(*) from v_player_match where season <= '2025-26'` = 253,900 (re-count after cleaning)                                                                                                                                                              | `test_etl_schema.py`            | P1         |
+| 30+ leakage-safe features                                                                | Design fact   | `len(config.FEATURES)` (42 planned); "leakage-safe" backed by `test_no_leakage.py`                                                                                                                                                                               | CI log                          | P2         |
+| rolling form, minutes, xG/xA, fixture difficulty, opponent strength                      | Design fact   | feature groups in §8 P2                                                                                                                                                                                                                                          | `config.py`, model card         | P2         |
+| DuckDB SQL window-function views over a Python ETL from the FPL API                      | Design fact   | `db/sql/*.sql`, `etl/`                                                                                                                                                                                                                                           | repo                            | P1, P2, P5 |
+| "Cut MAE by ~10% vs a rolling-form baseline" (measured **11.4%**, CI [10.2, 12.6], P3)   | **VERIFY** ✅ | `(MAE_B0 − MAE_LGBM) / MAE_B0` on **regulars**, walk-forward 2025-26 GW5–38, with the bootstrap 95% CI. **Write your actual number** (e.g. "by 9%"). If it's under 5%, or the CI crosses 0, rewrite the bullet around the system (features + ILP), not the gain. | `metrics.json`, Model Card page | P3         |
+| validated walk-forward, explained with SHAP                                              | Design        | `walk_forward.py`; SHAP plots                                                                                                                                                                                                                                    | notebooks 02/03                 | P3, P4     |
+| PuLP ILP, £100m, quotas, ≤3 per club, maximizing projected points                        | Design fact   | `test_squad_constraints.py`                                                                                                                                                                                                                                      | CI log                          | P4         |
+| served via a FastAPI + React app with a transfer planner and team comparison             | Design fact   | `/api/transfers/plan`, `/api/compare`; My Team transfers panel and Compare page                                                                                                                                                                                  | live app, `test_api_*.py`       | P4, P6, P7 |
+| refreshed weekly by GitHub Actions                                                       | Design fact   | public URL, plus ≥1 successful scheduled run in the Actions tab                                                                                                                                                                                                  | README badge                    | P8         |
+| (optional) backtest points gain (measured P4: A−B **−75**, CI [−276, +118]; not claimed) | **VERIFY** ❌ | strategy A vs B total points, 2025-26 GW5–38                                                                                                                                                                                                                     | notebook 04                     | P4         |
 
 Never claim users, ranks or "beats FPL experts" unless you measure it.
 
 ## 10. Resume entry this project backs
 
 ```
-FPLense | Python, DuckDB, LightGBM, scikit-learn, SHAP, PuLP, Streamlit                          Nov 2026
+FPLense | Python, DuckDB, LightGBM, scikit-learn, SHAP, PuLP, FastAPI, React                   Nov 2026
 • Cut next-gameweek FPL points MAE by 11% vs a rolling-form baseline with a LightGBM model on 250K+
   player-gameweek rows (10 seasons), validated walk-forward and explained with SHAP.   [measured P3: 11.4%, CI 10.2–12.6]
 • Engineered 30+ leakage-safe features (rolling form, minutes, xG/xA, fixture difficulty, opponent strength)
   as DuckDB SQL window-function views over a Python ETL from the FPL API.
 • Formulated squad selection as a PuLP integer linear program (£100m budget, position quotas, max 3 per club)
-  maximizing projected points; served with a transfer planner in Streamlit, refreshed weekly by GitHub Actions.
+  maximizing projected points; served via a FastAPI + React app with a transfer planner and team comparison,
+  refreshed weekly by GitHub Actions.
 ```
+
+(Changed 2026-10-09 from "…in Streamlit…" when the app moved to FastAPI + React. Update the ML resume's compact entry the same way.)
 
 Measured values (fill in as phases finish):
 
@@ -641,7 +848,7 @@ Measured values (fill in as phases finish):
 - Feature count: 43 in `config.FEATURES` (the §8 table sums to 43, not the 42 it states), covered by the leakage test (P2)
 - Regulars MAE: B0 2.535 → LightGBM 2.246 (−11.4%, 95% CI [10.2, 12.6]) per player-gameweek, walk-forward 2025-26 GW5–38, 7,365 regular player-GWs (P3). Spearman per GW 0.17 → 0.32. The resume's "∼10%" is backed; the measured figure is 11%, so the bullet now reads "by 11%".
 - Optimizer backtest (not on the resume): A (ILP + LightGBM) 1,751 vs B (ILP + rolling form) 1,826 vs C (greedy + LightGBM) 1,844 points, 2025-26 GW5–38; A−B −75, 95% CI [−276, +118] (P4)
-- Live URL: \_\_\_\_ (P6)
+- Live URLs: frontend \_\_\_\_ · API \_\_\_\_ (P8)
 
 ## 11. Interview talking points and likely questions
 
@@ -667,26 +874,31 @@ Measured values (fill in as phases finish):
 | Isn't using betting odds leakage? | No, if they're pre-deadline prices. football-data collects them Friday/Tuesday afternoon, closing columns are dropped at load, and a test checks no `C`-suffixed column survives. |
 | How did you join sources with different team names? | A hand-built mapping table plus a test that all 3,800 historical fixtures match on (season, home, away). |
 | Double and blank gameweeks? | Per-fixture predictions summed per GW; blanks give 0; `is_dgw` feature; the horizon objective naturally values DGW players. |
-| How is it deployed? Failure modes? | GitHub Actions daily check that refreshes once per GW before the deadline, tests before commit, the app reads static artifacts, a fallback local runner, retries for the API. |
+| How is it deployed? Failure modes? | GitHub Actions daily check that refreshes once per GW before the deadline, tests before commit, a FastAPI backend on Render that reads committed artifacts (redeploys on push), a React frontend on Vercel, a fallback local runner, retries and caching for the FPL API. |
+| Why FastAPI + React instead of Streamlit? | Streamlit was fine for a dashboard, but drag-and-drop team building, comparing 3 teams, shareable URLs and a polished mobile UI need a real frontend. Splitting the API also keeps the model offline: the server only reads published files and solves the ILP. |
+| How do you stop the "historical predictions" from being rewritten after a retrain? | A write-once per-GW archive with the model hash and training cut-off in `meta.json`; GWs before the archive existed are backfilled as-of (truncated lake) and labelled, and backfill refuses if the model has seen that season. |
+| What is the "hindsight-best" team? | The same ILP and rules, solved on actual points with that week's prices: the ceiling for that GW. The capture ratio (model pick ÷ ceiling) shows how hard the problem is; I don't claim it beats anything. |
+| How do the team codes work? | Versioned, season-tagged, checksummed binary payload in Crockford base32; the same test vectors run in pytest and Vitest so Python and TypeScript agree byte for byte. |
 
-## 12. Stretch goals (after P6 only)
+## 12. Stretch goals (after P8 only)
 
 - **Two-stage model:** P(plays ≥60) classifier × points-given-plays regressor.
 - **Quantile LightGBM** (p10/p50/p90) for haul probability, plus a risk-adjusted optimizer.
 - **Per-GW XI and captain variables** in the ILP, a multi-GW transfer plan, and chip timing.
 - **Benchmark against FPL `ep_next`:** snapshot it weekly and compare MAE going forward.
-- Optuna tuning, MLflow tracking, a Dockerfile.
+- Optuna tuning, MLflow tracking.
+- Web app: chip planner (wildcard / free hit / bench boost previews), mini-league view (compare against rivals' teams), price-change watch, a PWA install with deadline reminders, Playwright end-to-end tests.
 
-## 13. README and demo checklist (P6)
+## 13. README and demo checklist (P8)
 
-- [ ] Title, one-line pitch, **live Streamlit link** and an Actions status badge at the top
+- [ ] Title, one-line pitch, **live web-app link** and an Actions status badge at the top
 - [ ] A "Results" box with **your** MAE gain plus its CI, Spearman, top-20 precision, and one honest limitation
 - [ ] Architecture diagram (§5) and the feature table
-- [ ] Screenshots: Projections, Optimal Squad (pitch), Transfer Planner, Model Card
+- [ ] Screenshots / GIFs: Best Team pitch, Season Replay, My Team + transfer suggestions, a 3-team Compare, Builder drag and drop, Model Card (desktop + one mobile shot)
 - [ ] SHAP beeswarm image and one waterfall
 - [ ] Backtest chart (if built)
-- [ ] **Loom (≤ 3 min):** problem → leakage-safe features → walk-forward results → optimizer → live app
-- [ ] "How to run" in ≤ 5 commands; `pytest` passing
-- [ ] Data credits: vaastav repo citation, FPL API (unofficial), football-data.co.uk (odds), Kaggle `adamgbor/club-football-match-data-2000-2025` (MIT; Elo from ClubElo). Disclaimer: not affiliated with the Premier League, not betting advice.
+- [ ] **Loom (≤ 3 min):** problem → leakage-safe features → walk-forward results → optimizer → live app (load a real team, compare, transfers)
+- [ ] "How to run" in ≤ 5 commands each for the API (`uvicorn`) and the web app (`npm run dev`); `pytest` and `npm test` passing
+- [ ] Data credits: vaastav repo citation, FPL API (unofficial), football-data.co.uk (odds), Kaggle `adamgbor/club-football-match-data-2000-2025` (MIT; Elo from ClubElo), the EA FC ratings dataset (if used). Player photos © Premier League, hotlinked, not re-hosted. Disclaimer: not affiliated with the Premier League, EA SPORTS or FIFA; not betting advice.
 - [ ] The odds clean-sheet calibration plot, plus the ablation row showing what odds/Elo added
 - [ ] Repo pinned on GitHub and linked from sudev.xyz; the resume link resolves
