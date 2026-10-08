@@ -117,3 +117,32 @@ Full lists in `tests/fixtures/api_fields.json`; trimmed samples (5 items per lis
 - **Odds/Elo kept in the model, but no claim made for them.** In the ablation they move regulars' MAE by −0.003 (2.253 → 2.250), which is noise. They cost nothing, they're forward-looking (useful early in a season, when team form windows are short), and P5's live path already plans for them.
 - **All 10 seasons kept for training.** Training on 2022-23+ only (the xG era) gives the same MAE (2.251 vs 2.250), so the older seasons, with NaN xG, don't hurt.
 - **The final model has 106 trees** (early stopping at lr 0.03 on the last 3 GWs of 2025-26). Not tuned further: no tuning was done against the evaluation, so the walk-forward number stays honest.
+
+## P4: SHAP, optimizer, transfer planner, backtest (2026-10-08)
+
+### SHAP
+- **Sample = 5,000 rows of 2025-26**, not all seasons: it's the only season where every feature (xG, DEFCON, odds, Elo) is populated, so the beeswarm describes the regime the live model runs in.
+- `shap.TreeExplainer` for the plots; LightGBM's own `pred_contrib` (same TreeSHAP, verified identical) for `shap_frame`, which P5 runs every week without the SHAP object overhead.
+- `position` is shown as text in waterfalls (`display_data`) and as its category code for beeswarm colouring.
+- Waterfall examples are picked by rule, not by hand: the priciest regular FWD and the best-predicted regular DEF ≤ £4.5m in the season's last GW. The final model was trained on that GW, so they explain the model, they don't evaluate it.
+
+### Squad ILP
+- Followed PLAN's formulation exactly (objective `Σ start·P_h + capt·p1 + 0.1·Σ bench·P_h`). Constraint and variable builders are shared with the transfer planner, so both enforce identical rules.
+- Prices validated as integer tenths; floats like 5.5 raise instead of silently passing.
+- Vice-captain = highest-p1 starter other than the captain; bench order = outfield by p1, GK last (matches FPL auto-sub order).
+- PuLP 3.3 emits 4.0 deprecation warnings for `LpVariable.dicts` / `PULP_CBC_CMD`; we pin `pulp<4` (CLAUDE.md), so pytest filters those warnings rather than switching APIs.
+- **Greedy baseline** (`greedy_squad`) adds by `P_h / price` but only if the squad can still be completed with the cheapest *unpicked* players, so it always returns a legal squad. Its XI is chosen by `best_xi` (fill formation minimums, then best remaining outfielders), which is optimal for a fixed squad.
+
+### Transfer planner
+- `x_i = s0_i − out_i + in_i`, with `in` variables only for non-squad players and `out` only for squad players, so a player can't be sold and re-bought.
+- `h` is an integer variable with `h ≥ T − F`; the objective subtracts `4h`, so the solver sets `h = max(0, T − F)`. Free transfers clipped to 0..5.
+- Current squad players are exempt from the availability filter (they must stay sellable); the filter applies to buy candidates only.
+- Options the budget can't reach are dropped (T = 0 must always be feasible). Recommended option = largest net gain, ties to fewer transfers.
+
+### Backtest
+- **Horizon from the schedule only** (developer's choice): walk-forward has leak-free predictions for GW k only, so `P_h` for GW k+j uses the player's latest per-fixture prediction × his club's fixture count in GW k+j × 0.9^j. Blank and double GWs are priced correctly, no future form is used. A test perturbs later predictions and asserts the GW k pool doesn't change.
+- A player missing from GW k although his club plays has left the game → `status "u"`, P_h 0 (sellable, not buyable). A missing player whose club blanks stays active.
+- Sold at the current price (no half-of-rise rule; applied to every strategy alike). ≤ 1 free transfer per GW, no rollover, no hits, no chips, as PLAN specifies.
+- C (greedy) uses LightGBM predictions, so A vs C isolates the optimizer and A vs B isolates the forecast.
+- CIs on total-point differences: bootstrap over the 34 gameweeks (same block idea as P3).
+- **Result kept as measured:** A trailed B by 75 points with a CI spanning ±200; no strategy tweaks were tried to make A win, and no backtest claim is made.

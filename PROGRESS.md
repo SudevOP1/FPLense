@@ -109,3 +109,28 @@ Template:
 - L1 has the lowest MAE but under-rates hauls (worst RMSE); L2 stays the production model because the optimizer needs expected points.
 - Only 106 trees: the early-stopping set (last 3 GWs) is noisy. P4's SHAP runs on this model; tuning stays a stretch goal.
 - P5 must build prediction rows with `train.lgbm_frame` (fixed position categories) to match `model.txt`.
+
+## P4: SHAP + model card + PuLP optimizer + transfer planner + backtest (2026-10-08)
+**Shipped:**
+- `models/explain.py`: `shap.TreeExplainer` on `model.txt` (5,000-row sample of 2025-26), beeswarm, dependence plots (`minutes_r3`, `xgi_r5`, `fdr`), waterfalls for a premium FWD and a budget DEF; `shap_frame` / `top_contributions` for P5's published predictions; summary → `data/published/shap_importance.json`.
+- `optimize/squad_ilp.py`: PuLP/CBC squad ILP (integer-tenths budget, 2-5-5-3, ≤3 per club, XI 1 GK / ≥3 DEF / ≥2 MID / ≥1 FWD, one starting captain), vice = best-p1 other starter, bench order, availability pre-filter (`status == "u"`, 0% chance), clear `InfeasibleSquadError`, `discounted_sum` for P_h, a greedy points-per-£ baseline, `check_squad` rule checker.
+- `optimize/transfers.py`: transfer planner for T = 0..3 (`x = s0 − out + in`, `h ≥ T − F`, −4 per hit, budget = value(S0) + bank), net gain vs holding, `recommended`, `options_table`. Current squad is never filtered out (can always be sold).
+- `optimize/backtest.py`: 2025-26 GW5–38 on the saved walk-forward predictions with real per-GW prices; strategies A (ILP + LightGBM), B (ILP + B0), C (greedy + LightGBM); auto-subs, vice-captain fallback, gameweek-bootstrap CI on the total difference; `docs/img/backtest_cumulative.png`, `data/published/backtest.json`.
+- `pipeline.py --explain`, `--backtest`, `--horizon N`. Config: game rules, horizon/discount/bench weight, SHAP and backtest settings.
+- `docs/model_card.md`; `notebooks/03_shap.ipynb` and `04_optimizer_backtest.ipynb` (executed, takeaways written); 7 SHAP/backtest images in `docs/img/`.
+- Tests: `test_squad_constraints.py` (18), `test_transfers.py` (15), `test_explain.py` (6), `test_backtest.py` (6), shared synthetic pools in `tests/pools.py`.
+
+**Deferred:** none. (Upcoming-fixture prediction rows, published per-row SHAP and the app pages are P5.)
+
+**Measured:**
+- SHAP (mean |SHAP|, points per fixture): `minutes_r3` 0.575, `pts_last1` 0.246, `pts_season_avg` 0.146, `price` 0.084, `pts_r3` 0.081, `ict_r5` 0.047, `p_win` 0.046. Groups: minutes 0.62, form 0.53, market 0.13, odds/Elo 0.11, fixture 0.05, attacking 0.03, defensive 0.03. `xgi_r5` only 0.003. Base value 1.247. TreeExplainer = LightGBM `pred_contrib` exactly (max diff 0).
+- Waterfalls (2025-26 GW38): Haaland pred 5.87 (actual 0); Mavropanos (DEF £4.5m) pred 4.24 (actual 8).
+- ILP on the real 741-player GW5 pool: ~1.7 s; transfer plan for T = 0..3: ~5 s.
+- Backtest 2025-26 GW5–38 (horizon 3, ≤1 free transfer/GW, no hits): **A 1,751 · B 1,826 · C 1,844**. A − B = −75 (95% CI [−276, +118], A ahead in 17/34 GWs); A − C = −93 ([−257, +50]). Runtime 175 s. **Not significant; no backtest claim** (PLAN §9).
+- Checks: `ruff check` / `ruff format --check` clean; `pytest -q` 136 passed; `pytest -q -m data` 28 passed.
+
+**Follow-ups / notes:**
+- The 11% MAE gain doesn't translate into season points in a one-path backtest; week-to-week noise (SD 13–16 per GW) swamps it. Good interview material: forecast accuracy ≠ decision value. Candidate improvements are stretch goals (rolling free transfers/hits, multi-GW ILP, quantile captaincy).
+- P5: write `explain.top_contributions(explain.shap_frame(model, rows))` into the predictions Parquet; build pools with `price = now_cost` (integer) and filter via `squad_ilp.eligible`.
+- P5's Model Card page should copy the SHAP/backtest images into `data/published/` (the app reads only that folder) or read the JSON summaries.
+- `explain.py` no longer forces the Agg backend (it blanked notebook plots); headless runs fall back to Agg automatically.

@@ -31,3 +31,5 @@ markers = [
     "data: needs the downloaded data lake (data/lake/); skipped when absent",
 ]
 addopts = "-m 'not data'"
+# PuLP 3.3 warns that LpVariable.dicts / PULP_CBC_CMD go away in 4.0; we pin pulp<4 on purpose
+filterwarnings = ["ignore::DeprecationWarning:pulp.*"]

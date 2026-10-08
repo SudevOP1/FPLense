@@ -8,8 +8,10 @@
     python -m fPLense.pipeline --evaluate                 # walk-forward + holdout + ablation
     python -m fPLense.pipeline --evaluate --step 2 --no-ablation   # quicker check
     python -m fPLense.pipeline --train                    # final LightGBM -> data/published/
+    python -m fPLense.pipeline --explain                  # SHAP plots -> docs/img/
+    python -m fPLense.pipeline --backtest                 # optimizer backtest 2025-26 GW5-38
 
-Later phases add --refresh, --predict and --horizon.
+Later phases add --refresh, --predict.
 """
 
 from __future__ import annotations
@@ -64,6 +66,22 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="fit the final LightGBM on all seasons -> data/published/model.txt",
     )
+    parser.add_argument(
+        "--explain",
+        action="store_true",
+        help="SHAP beeswarm, dependence plots and waterfalls for model.txt -> docs/img/",
+    )
+    parser.add_argument(
+        "--backtest",
+        action="store_true",
+        help="optimizer backtest on the saved walk-forward predictions -> published/backtest.json",
+    )
+    parser.add_argument(
+        "--horizon",
+        type=int,
+        default=config.HORIZON,
+        help=f"gameweeks the optimizer looks ahead (default {config.HORIZON})",
+    )
     parser.add_argument("--force", action="store_true", help="re-download files that exist")
     parser.add_argument(
         "--seasons", nargs="*", metavar="YYYY-YY", help=f"subset of {config.SEASONS}"
@@ -85,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(f"unknown seasons: {unknown}")
 
     actions = (args.refresh_history, args.refresh_odds, args.refresh_elo, args.build)
-    if not (any(actions) or args.evaluate or args.train):
+    if not (any(actions) or args.evaluate or args.train or args.explain or args.backtest):
         parser.print_help()
         return 0
 
@@ -111,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.build:
         build_feature_store()
 
-    if args.evaluate or args.train:
+    if args.evaluate or args.train or args.explain:
         from fPLense.models.train import load_features
 
         df = load_features()
@@ -132,7 +150,52 @@ def main(argv: list[str] | None = None) -> int:
                 f"(early-stopping best iteration {model.early_stopping_best_iteration_}) "
                 f"-> {config.MODEL_PATH}"
             )
+        if args.explain:
+            explain_model(df)
+
+    if args.backtest:
+        run_backtest(args.horizon)
     return 0
+
+
+def explain_model(df) -> None:
+    from fPLense.models.explain import run_shap, save_summary
+
+    summary = run_shap(df)
+    path = save_summary(summary)
+    print(f"SHAP on {summary['sample_rows']:,} rows of {summary['sample_season']}")
+    print("mean |SHAP| (points per fixture), top 10:")
+    for f, v in list(summary["mean_abs_shap"].items())[:10]:
+        print(f"  {f:>24}: {v:.3f}")
+    for key, w in summary["waterfalls"].items():
+        print(
+            f"waterfall {key}: {w['name']} {w['season']} GW{w['gw']} "
+            f"pred {w['prediction']:.2f} (actual {w['actual']:.0f})"
+        )
+    print(f"plots -> {config.DOCS_IMG_DIR}; summary -> {path}")
+
+
+def run_backtest(horizon: int) -> None:
+    from fPLense.optimize import backtest
+
+    result = backtest.run_backtest(horizon=horizon)
+    path = backtest.save(result)
+    img = backtest.plot_cumulative(result.per_gw, config.DOCS_IMG_DIR / "backtest_cumulative.png")
+    result.per_gw.to_parquet(config.EVAL_DIR / "backtest_per_gw.parquet", index=False)
+    s = result.summary
+    print(f"backtest {s['season']} GW{s['gws'][0]}-{s['gws'][-1]}, horizon {s['horizon']}:")
+    for k, label in s["strategies"].items():
+        print(f"  {label:>30}: {s['total_points'][k]:>5} pts, {s['transfers_made'][k]} transfers")
+    if "a_minus_b" in s:
+        lo, hi = s["a_minus_b_ci95"]
+        print(
+            f"  A - B: {s['a_minus_b']:+d} pts [95% CI {lo:+.0f}, {hi:+.0f}], "
+            f"A ahead in {s['a_beats_b_gws']}/{len(s['gws'])} GWs"
+        )
+    if "a_minus_c" in s:
+        lo, hi = s["a_minus_c_ci95"]
+        print(f"  A - C: {s['a_minus_c']:+d} pts [95% CI {lo:+.0f}, {hi:+.0f}]")
+    print(f"-> {path}, {img} (runtime {s['runtime_s']}s)")
 
 
 def evaluate_models(df, step: int, ablation_step: int | None, fresh: bool = False) -> None:

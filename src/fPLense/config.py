@@ -181,3 +181,32 @@ ABLATION_SETS: dict[str, list[str]] = {
     "iv_odds_elo": FEATURES,
 }
 XG_FIRST_SEASON = "2022-23"
+
+# --- explainability (PLAN.md §8 P4) --------------------------------------------------------
+
+SHAP_SAMPLE_ROWS = 5_000
+SHAP_SAMPLE_SEASON = TARGET_SEASON  # every feature (xG, DEFCON) is populated in this season
+SHAP_DEPENDENCE_FEATURES: list[str] = ["minutes_r3", "xgi_r5", "fdr"]
+SHAP_TOP_K = 5  # top contributions per row written next to published predictions (P5)
+SHAP_IMPORTANCE_PATH = PUBLISHED_DIR / "shap_importance.json"
+
+# --- game rules for the optimizer (PLAN.md §3c) --------------------------------------------
+# Prices are integer tenths of £1m (FPL now_cost: 55 = £5.5m), so budget checks are exact.
+
+BUDGET = 1000
+SQUAD_QUOTAS: dict[str, int] = {"GK": 2, "DEF": 5, "MID": 5, "FWD": 3}
+XI_SIZE = 11
+XI_MIN: dict[str, int] = {"GK": 1, "DEF": 3, "MID": 2, "FWD": 1}  # GK is exactly 1
+MAX_PER_CLUB = 3
+HIT_COST = 4  # points per transfer beyond the free ones
+MAX_FREE_TRANSFERS = 5
+MAX_TRANSFERS_PLANNED = 3
+HORIZON = 3  # default number of gameweeks the optimizer looks ahead
+HORIZON_DISCOUNT = 0.9  # weight of GW t+j is 0.9**j
+BENCH_WEIGHT = 0.1
+
+# --- optimizer backtest (PLAN.md §8 P4) ----------------------------------------------------
+
+BACKTEST_SEASON = TARGET_SEASON
+BACKTEST_START_GW = 5
+BACKTEST_PATH = PUBLISHED_DIR / "backtest.json"

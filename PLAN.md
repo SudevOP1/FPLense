@@ -20,7 +20,7 @@ Update this table at the end of every phase (see `CLAUDE.md` → "Implementing a
 | P1    | Setup + historical ETL                                |        2 | ✅ done        | 2026-10-07 | 10 seasons in lake: 253,900 raw → 253,578 rows (322 AM rows dropped); 3,800 fixtures; schema tests green                                                                           |
 | P2    | Odds/Elo ETL + DuckDB feature store                   |      2.5 | ✅ done        | 2026-10-08 | 3,800/3,800 fixtures matched to odds, 7,600/7,600 team rows with Elo; `v_features` 253,578 rows × 43 features; implied CS 0.270 vs actual 0.267; leakage test green                |
 | P3    | EDA + baselines + LightGBM walk-forward               |      3.5 | ✅ done        | 2026-10-08 | Walk-forward 2025-26 GW5–38, regulars: B0 MAE 2.535 → LightGBM 2.246 (**−11.4%**, 95% CI [10.2, 12.6]); beats B0 in 34/34 GWs; 2024-25 holdout −10.6%; odds/Elo add ≈0 in ablation |
-| P4    | SHAP + model card + PuLP optimizer + transfer planner |        3 | ⬜ not started |            |                                                                                                                                                                                    |
+| P4    | SHAP + model card + PuLP optimizer + transfer planner |        3 | ✅ done        | 2026-10-08 | SHAP top driver `minutes_r3`; ILP + planner + SHAP + backtest: 45 new tests green; backtest 2025-26 GW5–38: A (ILP+LightGBM) 1,751 vs B (ILP+B0) 1,826, A−B −75 [−276, +118] → no backtest claim |
 | P5    | Live API path + predictions + Streamlit app           |        2 | ⬜ not started |            |                                                                                                                                                                                    |
 | P6    | GitHub Actions + deploy + README                      |      1.5 | ⬜ not started |            |                                                                                                                                                                                    |
 
@@ -619,7 +619,7 @@ The scheduled run needs the historical lake for rolling features. Either cache `
 | PuLP ILP, £100m, quotas, ≤3 per club, maximizing projected points                      | Design fact   | `test_squad_constraints.py`                                                                                                                                                                                                                                      | CI log                          | P4         |
 | transfer planner in Streamlit                                                          | Design fact   | Transfer Planner page                                                                                                                                                                                                                                            | live app                        | P4, P5     |
 | refreshed weekly by GitHub Actions                                                     | Design fact   | public URL, plus ≥1 successful scheduled run in the Actions tab                                                                                                                                                                                                  | README badge                    | P6         |
-| (optional) backtest points gain                                                        | **VERIFY**    | strategy A vs B total points, 2025-26 GW5–38                                                                                                                                                                                                                     | notebook 04                     | P4         |
+| (optional) backtest points gain (measured P4: A−B **−75**, CI [−276, +118]; not claimed) | **VERIFY** ❌ | strategy A vs B total points, 2025-26 GW5–38 | notebook 04 | P4 |
 
 Never claim users, ranks or "beats FPL experts" unless you measure it.
 
@@ -640,6 +640,7 @@ Measured values (fill in as phases finish):
 - Rows after cleaning: 253,578 (253,900 raw minus 322 2024-25 assistant-manager rows; 10 seasons, 3,800 fixtures) (P1)
 - Feature count: 43 in `config.FEATURES` (the §8 table sums to 43, not the 42 it states), covered by the leakage test (P2)
 - Regulars MAE: B0 2.535 → LightGBM 2.246 (−11.4%, 95% CI [10.2, 12.6]) per player-gameweek, walk-forward 2025-26 GW5–38, 7,365 regular player-GWs (P3). Spearman per GW 0.17 → 0.32. The resume's "∼10%" is backed; the measured figure is 11%, so the bullet now reads "by 11%".
+- Optimizer backtest (not on the resume): A (ILP + LightGBM) 1,751 vs B (ILP + rolling form) 1,826 vs C (greedy + LightGBM) 1,844 points, 2025-26 GW5–38; A−B −75, 95% CI [−276, +118] (P4)
 - Live URL: \_\_\_\_ (P6)
 
 ## 11. Interview talking points and likely questions
