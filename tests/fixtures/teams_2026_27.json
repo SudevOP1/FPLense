@@ -1,0 +1,107 @@
+{
+ "season": "2026-27",
+ "fetched": "2026-10-08",
+ "source": "bootstrap-static teams",
+ "teams": [
+  {
+   "id": 1,
+   "name": "Arsenal",
+   "short_name": "ARS"
+  },
+  {
+   "id": 2,
+   "name": "Aston Villa",
+   "short_name": "AVL"
+  },
+  {
+   "id": 3,
+   "name": "Bournemouth",
+   "short_name": "BOU"
+  },
+  {
+   "id": 4,
+   "name": "Brentford",
+   "short_name": "BRE"
+  },
+  {
+   "id": 5,
+   "name": "Brighton",
+   "short_name": "BHA"
+  },
+  {
+   "id": 6,
+   "name": "Chelsea",
+   "short_name": "CHE"
+  },
+  {
+   "id": 7,
+   "name": "Coventry City",
+   "short_name": "COV"
+  },
+  {
+   "id": 8,
+   "name": "Crystal Palace",
+   "short_name": "CRY"
+  },
+  {
+   "id": 9,
+   "name": "Everton",
+   "short_name": "EVE"
+  },
+  {
+   "id": 10,
+   "name": "Fulham",
+   "short_name": "FUL"
+  },
+  {
+   "id": 11,
+   "name": "Hull City",
+   "short_name": "HUL"
+  },
+  {
+   "id": 12,
+   "name": "Ipswich Town",
+   "short_name": "IPS"
+  },
+  {
+   "id": 13,
+   "name": "Leeds",
+   "short_name": "LEE"
+  },
+  {
+   "id": 14,
+   "name": "Liverpool",
+   "short_name": "LIV"
+  },
+  {
+   "id": 15,
+   "name": "Man City",
+   "short_name": "MCI"
+  },
+  {
+   "id": 16,
+   "name": "Man Utd",
+   "short_name": "MUN"
+  },
+  {
+   "id": 17,
+   "name": "Newcastle",
+   "short_name": "NEW"
+  },
+  {
+   "id": 18,
+   "name": "Nott'm Forest",
+   "short_name": "NFO"
+  },
+  {
+   "id": 19,
+   "name": "Spurs",
+   "short_name": "TOT"
+  },
+  {
+   "id": 20,
+   "name": "Sunderland",
+   "short_name": "SUN"
+  }
+ ]
+}

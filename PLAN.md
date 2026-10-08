@@ -19,7 +19,7 @@ Update this table at the end of every phase (see `CLAUDE.md` → "Implementing a
 | Phase | Name | Sessions | Status | Finished | Key result |
 |---|---|---:|---|---|---|
 | P1 | Setup + historical ETL | 2 | ✅ done | 2026-10-07 | 10 seasons in lake: 253,900 raw → 253,578 rows (322 AM rows dropped); 3,800 fixtures; schema tests green |
-| P2 | Odds/Elo ETL + DuckDB feature store | 2.5 | ⬜ not started | | |
+| P2 | Odds/Elo ETL + DuckDB feature store | 2.5 | ✅ done | 2026-10-08 | 3,800/3,800 fixtures matched to odds, 7,600/7,600 team rows with Elo; `v_features` 253,578 rows × 43 features; implied CS 0.270 vs actual 0.267; leakage test green |
 | P3 | EDA + baselines + LightGBM walk-forward | 3.5 | ⬜ not started | | |
 | P4 | SHAP + model card + PuLP optimizer + transfer planner | 3 | ⬜ not started | | |
 | P5 | Live API path + predictions + Streamlit app | 2 | ⬜ not started | | |
@@ -604,7 +604,7 @@ FPLense | Python, DuckDB, LightGBM, scikit-learn, SHAP, PuLP, Streamlit         
 
 Measured values (fill in as phases finish):
 - Rows after cleaning: 253,578 (253,900 raw minus 322 2024-25 assistant-manager rows; 10 seasons, 3,800 fixtures) (P1)
-- Feature count: ____ (P2)
+- Feature count: 43 in `config.FEATURES` (the §8 table sums to 43, not the 42 it states), covered by the leakage test (P2)
 - Regulars MAE: B0 ____ → LightGBM ____ (−__%, 95% CI [__, __]) (P3)
 - Live URL: ____ (P6)
 
