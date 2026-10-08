@@ -133,3 +133,51 @@ FEATURES: list[str] = [f for group in FEATURE_GROUPS.values() for f in group]
 CATEGORICAL_FEATURES: list[str] = ["position"]
 TARGET = "y"
 KEY_COLUMNS: list[str] = ["season", "element", "fixture"]
+
+# --- modelling (PLAN.md §8 P3) -------------------------------------------------------------
+
+EVAL_DIR = DATA_DIR / "eval"  # walk-forward predictions (gitignored; summarised in metrics.json)
+METRICS_PATH = PUBLISHED_DIR / "metrics.json"
+MODEL_PATH = PUBLISHED_DIR / "model.txt"
+
+# Walk-forward: for each k in EVAL_GWS train on everything before (TARGET_SEASON, k), predict k.
+TARGET_SEASON = "2025-26"
+EVAL_GWS: list[int] = list(range(5, 39))
+# Second view: one fit on seasons before HOLDOUT_SEASON, scored on HOLDOUT_SEASON GW5+.
+HOLDOUT_SEASON = "2024-25"
+
+# "Regulars" = lagged minutes only (never actual minutes), so the subset is known pre-deadline.
+REGULAR_MIN_MINUTES_R3 = 45
+TOP_K = 20
+BOOTSTRAP_REPS = 1_000
+EARLY_STOPPING_GWS = 3  # last N gameweeks of each training window are the early-stopping set
+EARLY_STOPPING_ROUNDS = 100
+RANDOM_STATE = 42
+
+LGBM_PARAMS: dict[str, object] = {
+    "objective": "regression",
+    "n_estimators": 2000,
+    "learning_rate": 0.03,
+    "num_leaves": 31,
+    "min_child_samples": 50,
+    "subsample": 0.8,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.8,
+}
+
+# Ablation ladder: each step adds a block of features to the previous one.
+_XG_FEATURES = ["xg_r5", "xa_r5", "xgi_r5", "xgc_r5", "opp_xga_r5", "team_xgf_r5"]
+_FORM_ONLY = [
+    f
+    for g in ("form", "minutes", "attacking", "defensive", "market", "categorical")
+    for f in FEATURE_GROUPS[g]
+    if f not in _XG_FEATURES
+]
+_FIXTURE = [f for f in FEATURE_GROUPS["fixture"] if f not in _XG_FEATURES]
+ABLATION_SETS: dict[str, list[str]] = {
+    "i_form": _FORM_ONLY,
+    "ii_fixture": _FORM_ONLY + _FIXTURE,
+    "iii_xg": _FORM_ONLY + _FIXTURE + _XG_FEATURES,
+    "iv_odds_elo": FEATURES,
+}
+XG_FIRST_SEASON = "2022-23"

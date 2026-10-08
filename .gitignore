@@ -9,6 +9,8 @@ data/lake/
 data/*.duckdb
 data/*.duckdb.wal
 data/cache/
+data/eval/
+data/*.log
 
 # python
 __pycache__/

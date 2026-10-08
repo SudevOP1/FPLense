@@ -5,8 +5,11 @@
     python -m fPLense.pipeline --refresh-odds             # football-data.co.uk odds -> lake
     python -m fPLense.pipeline --refresh-elo              # Kaggle ClubElo snapshots -> lake
     python -m fPLense.pipeline --build                    # DuckDB views + calibration plot
+    python -m fPLense.pipeline --evaluate                 # walk-forward + holdout + ablation
+    python -m fPLense.pipeline --evaluate --step 2 --no-ablation   # quicker check
+    python -m fPLense.pipeline --train                    # final LightGBM -> data/published/
 
-Later phases add --train, --refresh, --predict and --horizon.
+Later phases add --refresh, --predict and --horizon.
 """
 
 from __future__ import annotations
@@ -39,6 +42,28 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="create data/fplense.duckdb from db/sql/*.sql and save the odds calibration plot",
     )
+    parser.add_argument(
+        "--evaluate",
+        action="store_true",
+        help="walk-forward 2025-26 + 2024-25 holdout + ablation -> data/published/metrics.json",
+    )
+    parser.add_argument(
+        "--step", type=int, default=1, help="walk-forward: score every Nth gameweek (default 1)"
+    )
+    parser.add_argument(
+        "--ablation-step", type=int, default=2, help="ablation walk-forward step (default 2)"
+    )
+    parser.add_argument("--no-ablation", action="store_true", help="skip the ablation runs")
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="evaluate: delete saved fold checkpoints in data/eval/folds/ first",
+    )
+    parser.add_argument(
+        "--train",
+        action="store_true",
+        help="fit the final LightGBM on all seasons -> data/published/model.txt",
+    )
     parser.add_argument("--force", action="store_true", help="re-download files that exist")
     parser.add_argument(
         "--seasons", nargs="*", metavar="YYYY-YY", help=f"subset of {config.SEASONS}"
@@ -59,7 +84,8 @@ def main(argv: list[str] | None = None) -> int:
         if unknown:
             parser.error(f"unknown seasons: {unknown}")
 
-    if not (args.refresh_history or args.refresh_odds or args.refresh_elo or args.build):
+    actions = (args.refresh_history, args.refresh_odds, args.refresh_elo, args.build)
+    if not (any(actions) or args.evaluate or args.train):
         parser.print_help()
         return 0
 
@@ -84,7 +110,49 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.build:
         build_feature_store()
+
+    if args.evaluate or args.train:
+        from fPLense.models.train import load_features
+
+        df = load_features()
+        print(f"feature rows: {len(df):,} ({df['regular'].sum():,} regulars)")
+        if args.evaluate:
+            evaluate_models(
+                df,
+                step=args.step,
+                ablation_step=None if args.no_ablation else args.ablation_step,
+                fresh=args.fresh,
+            )
+        if args.train:
+            from fPLense.models.train import train_final
+
+            model = train_final(df)
+            print(
+                f"model: {model.booster_.num_trees()} trees "
+                f"(early-stopping best iteration {model.early_stopping_best_iteration_}) "
+                f"-> {config.MODEL_PATH}"
+            )
     return 0
+
+
+def evaluate_models(df, step: int, ablation_step: int | None, fresh: bool = False) -> None:
+    from fPLense.models.evaluate import metrics_table
+    from fPLense.models.walk_forward import run_evaluation
+
+    metrics = run_evaluation(df, step=step, ablation_step=ablation_step, fresh=fresh)
+    for view in ("walk_forward", "holdout"):
+        print(f"\n{view}:")
+        print(metrics_table(metrics[view]).to_string(index=False))
+    if "ablation" in metrics:
+        print("\nablation (regulars, LightGBM L2):")
+        for name, m in metrics["ablation"].items():
+            if isinstance(m, dict) and "regulars_mae" in m:
+                lo, hi = m["regulars_mae_gain_ci95"]
+                print(
+                    f"  {name:>20}: MAE {m['regulars_mae']:.3f} "
+                    f"({m['regulars_mae_gain_pct']:+.1f}% [{lo:+.1f}, {hi:+.1f}])"
+                )
+    print(f"\nmetrics ->{config.METRICS_PATH} (runtime {metrics['runtime_s']}s)")
 
 
 def _print_counts(label: str, counts: dict[str, int]) -> None:

@@ -70,3 +70,42 @@ Template:
 - `pts_last1` comes back from DuckDB as nullable `Int64`: P3 should cast features to float before modelling.
 - `v_features` keeps `opp_xgf_r5`, `odds_source` and `value` as extra (non-feature) columns; `value` is for the P4 backtest.
 - The Kaggle `access_token` on this machine is UTF-16 (PowerShell `>`). The loader copes, but re-saving it as ASCII keeps the plain `kaggle` CLI working.
+
+## P3: EDA + baselines + LightGBM walk-forward (2026-10-08)
+**Shipped:**
+- `models/baselines.py`: B0 rolling form (`pts_r5` → `pts_season_avg` → 0) and the B1 Ridge pipeline (median impute + indicators → scale → `RidgeCV`, position one-hot).
+- `models/train.py`: `load_features` (+ lagged `regular` flag), fixed-category `lgbm_frame`, `fit_lgbm` (early stopping on the window's last 3 GWs, then refit on the whole window at the best iteration), `train_final` → `data/published/model.txt`.
+- `models/walk_forward.py`: expanding-window folds (2025-26 GW5–38), the 2024-25 holdout, the ablation ladder, per-fold checkpoints in `data/eval/folds/` (resumable), `run_evaluation` → `metrics.json` + plots.
+- `models/evaluate.py`: per player-GW scoring, MAE/RMSE, gain vs B0 with a 1,000× gameweek block-bootstrap CI, Spearman per GW, top-20 precision per GW, calibration deciles, breakdown by position, `metrics_table.png` and `mae_by_gw.png`.
+- `pipeline.py --evaluate [--step N] [--ablation-step N] [--no-ablation] [--fresh]` and `--train`.
+- `config.py`: evaluation settings, `LGBM_PARAMS`, `ABLATION_SETS` (26 → 32 → 38 → 43 features).
+- `notebooks/01_eda.ipynb` (8 charts with takeaways) and `notebooks/02_model_eval.ipynb` (metrics, MAE by GW, calibration, positions, holdout, ablation), both run with their outputs saved.
+- Tests: `test_baselines.py` (9) and `test_walk_forward.py` (17 pure + 1 `@data`).
+
+**Deferred:** none.
+
+**Measured** (walk-forward 2025-26 GW5–38, 34 refits, scored per player-GW; regulars = lagged `minutes_r3 >= 45`):
+
+| Regulars (n = 7,365) | MAE | RMSE | Gain vs B0 [95% CI] | Spearman/GW | Top-20 prec./GW |
+|---|---:|---:|---|---:|---:|
+| B0 rolling form | 2.535 | 3.346 | | 0.174 | 0.166 |
+| B1 Ridge | 2.295 | 3.051 | +9.5% [8.5, 10.4] | 0.299 | 0.235 |
+| **M1 LightGBM L2** | **2.246** | 3.030 | **+11.4% [10.2, 12.6]** | 0.323 | 0.225 |
+| M2 LightGBM L1 | 2.068 | 3.279 | +18.4% [16.7, 20.0] | 0.317 | 0.212 |
+
+- All rows (n = 26,491): B0 1.037 → LightGBM L2 0.966 (+6.8% [5.7, 7.9]); Ridge −0.8%.
+- LightGBM L2 beats B0 in **34/34** gameweeks; by position: GK −10.3%, DEF −11.9%, MID −12.0%, FWD −8.4%.
+- 2024-25 holdout (one fit on 2016-17…2023-24): LightGBM L2 −10.6% [9.2, 12.1], Ridge −9.5%, L1 −18.6%.
+- Calibration (L2, regulars): deciles 1–5 within 0.08 pts; top decile 5.05 predicted vs 4.80 actual.
+- Ablation (LightGBM L2, every 2nd GW, regulars MAE): (i) form 2.294 (+9.2%) → (ii) + fixture 2.260 (+10.6%) → (iii) + xG 2.253 (+10.8%) → (iv) + odds/Elo 2.250 (+10.9%); (iv) trained on 2022-23+ only 2.251. (iii) → (iv) by position: GK +0.025, DEF −0.007, MID −0.006, FWD −0.001 (noise level).
+- Final model: early stopping picked **106 trees** (lr 0.03); `model.txt` 316 KB.
+- EDA: 42.9% of rows have minutes > 0; regulars are 32.4% of rows; lag-1 points autocorrelation among regulars r = 0.14; B0 MAE per fixture on regulars 2.36–2.54 by season (2025-26 hardest).
+- Runtime: `--evaluate --train` 45.5 min on the dev laptop (the first attempt was killed at GW31 when the system ran out of RAM; checkpoints were added after that).
+- Checks: `ruff check` / `ruff format --check` clean; `pytest -q` 91 passed; `pytest -q -m data` 28 passed.
+
+**Follow-ups / notes:**
+- The resume number is backed: 11.4% (CI 10.2–12.6). PLAN §10's bullet now says "by 11%". Update the ML resume's compact entry to match.
+- Odds/Elo features don't measurably improve MAE once fixture form + xG are in. Don't claim an odds gain; the README ablation row should say so plainly.
+- L1 has the lowest MAE but under-rates hauls (worst RMSE); L2 stays the production model because the optimizer needs expected points.
+- Only 106 trees: the early-stopping set (last 3 GWs) is noisy. P4's SHAP runs on this model; tuning stays a stretch goal.
+- P5 must build prediction rows with `train.lgbm_frame` (fixed position categories) to match `model.txt`.

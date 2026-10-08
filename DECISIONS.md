@@ -81,3 +81,39 @@ Full lists in `tests/fixtures/api_fields.json`; trimmed samples (5 items per lis
 - `defcon_r5` uses `defensive_contribution` only (2025-26), not the CBIT columns that also exist in 2016-19, so the feature means one thing.
 - SQL files use `${lake}` / `${team_names}` placeholders filled in by `db/build.py`, so tests build the same views in memory over synthetic or truncated lakes. The on-disk DuckDB holds views only (268 KB) and rebuilds in ~8 s.
 - `v_team_match.xg_for` = Σ player xG (NULL before 2022-23), so `team_xgf_r5` / `opp_xga_r5` stay NULL there, never 0.
+
+## P3: EDA, baselines, LightGBM, walk-forward (2026-10-08)
+
+### Evaluation unit and subset
+- **Scored per player-gameweek**, not per fixture: predictions are per fixture (the model's unit), then summed over a player's fixtures in the GW, as are the actual points. This is the unit of the resume claim ("next-gameweek points") and of the optimizer. DGWs are a small share of rows, so per-fixture numbers are close.
+- **Regulars = lagged `minutes_r3 >= 45`** (`train.add_regular_flag`; NaN, i.e. a player's first fixture of the season, counts as not regular). Both DGW fixtures carry the same frozen `minutes_r3`, so the flag is well defined per player-GW.
+- **Every row is used for training**, regulars or not: the optimizer has to price every player, including rotation risks.
+
+### Models
+- B0 = `pts_r5` → `pts_season_avg` → 0, exactly PLAN's order. Per GW it's summed over fixtures like the models.
+- Ridge: `SimpleImputer(median, add_indicator=True)` → `StandardScaler` on numeric columns, `OneHotEncoder(handle_unknown="ignore")` on `position`, `RidgeCV` over 13 alphas 1e-2 … 1e4. Columns that are all-NaN in a training window (DEFCON in the 2024-25 holdout) are dropped by the imputer with a warning; that's intended.
+- **LightGBM early stopping, then refit.** Each window's last 3 (season, GW) pairs are the early-stopping set (patience 100 rounds); the model is then refit on the *whole* window with the best iteration count. Without the refit, every fold would throw away the 3 most recent GWs, which are the most relevant for the next one. Costs 2× training time (~20 s per fold on 24 cores).
+- `position` is a pandas `Categorical` with fixed categories `GK, DEF, MID, FWD`, so the codes LightGBM sees are identical across folds and in the saved `model.txt` (P5 reuses `train.lgbm_frame`).
+- M2 uses `objective="l1"` (not Huber), so it matches the PLAN §3d sanity check.
+- `lightgbm>=4.7`: the sklearn API's `eval_set` is deprecated there in favour of `eval_X`/`eval_y`.
+
+### Walk-forward
+- `walk_forward.folds` yields boolean masks: train = seasons `<` target (string order works for `YYYY-YY`) plus target-season GWs `< k`; test = target season GW `k`. GWs with no rows are skipped (2022-23 has no GW7).
+- Training cutoff per fold is recorded (`train_last`, e.g. `2025-26 GW4` for k = 5) in the saved predictions, so the fold ordering is auditable.
+- Second view: one fit on 2016-17 … 2023-24, scored on 2024-25 GW5+.
+
+### Metrics
+- **Block bootstrap over gameweeks:** resample the GWs (with replacement, 1,000×, seed 42), recompute `1 − ΣAE_model / ΣAE_B0`. Errors inside a GW are correlated (same fixtures, same rotation news), so resampling rows would understate the CI. Implemented with `bincount` per GW, so 1,000 reps take milliseconds.
+- **Top-20 precision per GW, regulars:** share of the model's top-20 whose actual score is ≥ the 20th-best actual score that GW. Ties at the threshold count as top-20 (FPL scores tie a lot; with strict top-20 sets the metric would depend on arbitrary tie-breaking).
+- Spearman per GW is skipped for a GW where predictions or actuals are constant (never happens on real data).
+
+### Ablation
+- Ladder: (i) form = form + minutes + market + non-xG attacking/defensive stats + position/gw (26 features); (ii) + fixture/opponent form without xG (`was_home, fdr, opp_gf_r5, opp_ga_r5, team_gf_r5, is_dgw`; 32); (iii) + the 6 xG features (`xg_r5, xa_r5, xgi_r5, xgc_r5, opp_xga_r5, team_xgf_r5`; 38); (iv) + the 5 odds/Elo features = all 43. Plus (iv) trained on 2022-23+ only (the xG era).
+- Run walk-forward with `--ablation-step 2` (GW 5, 7, …, 37; 17 refits each), so the ablation rows are comparable with each other but not exactly with the step-1 headline.
+- **Fold checkpoints.** The first full run was killed at GW31/38 when the machine ran low on RAM (other apps; 1.6 of 15.7 GB free). Each fold is now saved to `data/eval/folds/<run>/gwKK.parquet` and reused on rerun; `--fresh` deletes them (needed after any feature/model change, or stale folds would be reused).
+
+### Results that shaped decisions
+- **L2 stays the production model** although L1 has the lower MAE (2.068 vs 2.246 on regulars): L1 predicts the median, its RMSE is the worst of the learned models (3.28 vs 3.03), and the ILP needs expected points. The resume number is L2's (11.4%), not L1's 18.4%.
+- **Odds/Elo kept in the model, but no claim made for them.** In the ablation they move regulars' MAE by −0.003 (2.253 → 2.250), which is noise. They cost nothing, they're forward-looking (useful early in a season, when team form windows are short), and P5's live path already plans for them.
+- **All 10 seasons kept for training.** Training on 2022-23+ only (the xG era) gives the same MAE (2.251 vs 2.250), so the older seasons, with NaN xG, don't hurt.
+- **The final model has 106 trees** (early stopping at lr 0.03 on the last 3 GWs of 2025-26). Not tuned further: no tuning was done against the evaluation, so the walk-forward number stays honest.
