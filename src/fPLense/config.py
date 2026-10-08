@@ -210,3 +210,44 @@ BENCH_WEIGHT = 0.1
 BACKTEST_SEASON = TARGET_SEASON
 BACKTEST_START_GW = 5
 BACKTEST_PATH = PUBLISHED_DIR / "backtest.json"
+
+# --- live path: FPL API -> predictions (PLAN.md §8 P5) -------------------------------------
+# The in-progress season lives apart from the 10-season training lake (data/lake/player_match/),
+# so the historical row counts and the training set stay fixed.
+
+LIVE_DIR = LAKE_DIR / "live"
+LIVE_HISTORY_PATH = LIVE_DIR / "player_match" / f"season={CURRENT_SEASON}" / "part.parquet"
+LIVE_PLAYERS_PATH = LIVE_DIR / "players.parquet"  # bootstrap-static elements, parsed
+LIVE_FIXTURES_PATH = LIVE_DIR / "fixtures.parquet"  # every fixture of the season, parsed
+LIVE_UPCOMING_ODDS_PATH = LIVE_DIR / "upcoming_odds.parquet"  # fixtures.csv E0 rows (next round)
+LIVE_HISTORY_PAST_PATH = LIVE_DIR / "history_past.parquet"  # cold-start info, once per season
+LIVE_META_PATH = LIVE_DIR / "meta.json"
+API_CACHE_DIR = RAW_DIR / "fpl_api"  # raw JSON; element-summary cached per finished GW
+
+PREDICT_HORIZON_MAX = 5  # the app's horizon slider goes up to this
+REFRESH_WINDOW_HOURS = 48  # --refresh/--predict only run when the next deadline is this close
+PUBLISHED_IMG_DIR = PUBLISHED_DIR / "img"  # model-card images the app shows
+LATEST_PATH = PUBLISHED_DIR / "latest.json"  # pointer to the newest predictions + metadata
+MAE_BY_GW_PATH = PUBLISHED_DIR / "mae_by_gw.json"
+PUBLISHED_IMAGES: list[str] = [
+    "mae_by_gw.png",
+    "metrics_table.png",
+    "shap_beeswarm.png",
+    "shap_waterfall_premium_fwd.png",
+    "shap_waterfall_budget_def.png",
+    "backtest_cumulative.png",
+    "odds_cs_calibration.png",
+]
+REPO_URL = "https://github.com/SudevOP1/FPLense"
+
+
+def predictions_path(gw: int) -> Path:
+    return PUBLISHED_DIR / f"predictions_gw{gw:02d}.parquet"
+
+
+def shap_path(gw: int) -> Path:
+    return PUBLISHED_DIR / f"shap_gw{gw:02d}.parquet"
+
+
+def squad_path(gw: int) -> Path:
+    return PUBLISHED_DIR / f"squad_gw{gw:02d}.json"

@@ -175,6 +175,29 @@ def build_odds_lake(seasons: list[str]) -> dict[str, int]:
     return counts
 
 
+def fetch_upcoming_odds(session=None) -> pd.DataFrame:
+    """Next-round Premier League odds from ``fixtures.csv`` (``Div == "E0"``), closing columns
+    dropped, implied goals added. Empty (with lake columns) when the file has no E0 rows, e.g.
+    during an international break."""
+    import io
+
+    resp = net.get(config.FOOTBALL_DATA_FIXTURES_URL, session)
+    raw = None
+    for encoding in ENCODINGS:
+        try:
+            raw = pd.read_csv(io.BytesIO(resp.content), encoding=encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    return upcoming_from_frame(raw)
+
+
+def upcoming_from_frame(raw: pd.DataFrame | None) -> pd.DataFrame:
+    if raw is None or "Div" not in raw or not (raw["Div"] == "E0").any():
+        return pd.DataFrame(columns=LAKE_COLUMNS)
+    return clean_odds(raw[raw["Div"] == "E0"])
+
+
 def read_odds(seasons: list[str] | None = None) -> pd.DataFrame:
     filters = [("season", "in", seasons)] if seasons else None
     df = pd.read_parquet(config.ODDS_DIR, partitioning="hive", filters=filters)

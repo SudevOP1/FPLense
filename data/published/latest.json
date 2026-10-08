@@ -1,0 +1,50 @@
+{
+  "season": "2026-27",
+  "gw": 6,
+  "gws": [
+    6,
+    7,
+    8,
+    9,
+    10
+  ],
+  "deadline": "2026-10-10T10:00:00+00:00",
+  "generated_at": "2026-10-08T16:45:02+00:00",
+  "data_fetched_at": "2026-10-08T16:35:41+00:00",
+  "data_through_gw": 5,
+  "horizon": 5,
+  "discount": 0.9,
+  "bench_weight": 0.1,
+  "files": {
+    "predictions": "predictions_gw06.parquet",
+    "shap": "shap_gw06.parquet",
+    "squad": "squad_gw06.json"
+  },
+  "players": 667,
+  "feature_rows": 3335,
+  "odds_sources": {
+    "6": {
+      "elo": 10
+    },
+    "7": {
+      "elo": 10
+    },
+    "8": {
+      "elo": 10
+    },
+    "9": {
+      "elo": 10
+    },
+    "10": {
+      "elo": 10
+    }
+  },
+  "elo_goal_model": {
+    "intercept": 0.19881971345307575,
+    "coef_elo_100": 0.18878819478465306,
+    "coef_home": 0.19491443862424648,
+    "n": 7600
+  },
+  "model_trees": 106,
+  "runtime_s": 4.3
+}

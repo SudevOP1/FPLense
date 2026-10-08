@@ -10,8 +10,11 @@
     python -m fPLense.pipeline --train                    # final LightGBM -> data/published/
     python -m fPLense.pipeline --explain                  # SHAP plots -> docs/img/
     python -m fPLense.pipeline --backtest                 # optimizer backtest 2025-26 GW5-38
+    python -m fPLense.pipeline --refresh --predict --horizon 5          # live path (gated)
+    python -m fPLense.pipeline --refresh --predict --horizon 5 --force  # run regardless
 
-Later phases add --refresh, --predict.
+The live path (--refresh / --predict) exits early with code 0 unless the next FPL deadline is
+less than 48 h away and predictions for that gameweek don't exist yet; --force overrides.
 """
 
 from __future__ import annotations
@@ -77,12 +80,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="optimizer backtest on the saved walk-forward predictions -> published/backtest.json",
     )
     parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="live: FPL API + current-season odds -> data/lake/live/ (gated, see --force)",
+    )
+    parser.add_argument(
+        "--predict",
+        action="store_true",
+        help="live: next-N-GW predictions, SHAP and squad -> data/published/ (gated)",
+    )
+    parser.add_argument(
         "--horizon",
         type=int,
         default=config.HORIZON,
-        help=f"gameweeks the optimizer looks ahead (default {config.HORIZON})",
+        help=f"gameweeks predicted / looked ahead by the optimizer (default {config.HORIZON})",
     )
-    parser.add_argument("--force", action="store_true", help="re-download files that exist")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="re-download files that exist; live path: ignore the deadline gate",
+    )
     parser.add_argument(
         "--seasons", nargs="*", metavar="YYYY-YY", help=f"subset of {config.SEASONS}"
     )
@@ -103,7 +120,9 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(f"unknown seasons: {unknown}")
 
     actions = (args.refresh_history, args.refresh_odds, args.refresh_elo, args.build)
-    if not (any(actions) or args.evaluate or args.train or args.explain or args.backtest):
+    live = args.refresh or args.predict
+    others = args.evaluate or args.train or args.explain or args.backtest
+    if not (any(actions) or others or live):
         parser.print_help()
         return 0
 
@@ -155,6 +174,74 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.backtest:
         run_backtest(args.horizon)
+
+    if live:
+        return run_live(args)
+    return 0
+
+
+def run_live(args) -> int:
+    """The live path: gate on the next deadline, then refresh and/or predict."""
+    import json
+
+    import pandas as pd
+
+    from fPLense.etl import fetch_api, net
+    from fPLense.models.predict import should_refresh
+
+    if not 1 <= args.horizon <= config.PREDICT_HORIZON_MAX:
+        print(f"error: --horizon must be 1..{config.PREDICT_HORIZON_MAX}")
+        return 2
+    session = net.make_session()
+    cached = config.API_CACHE_DIR / "bootstrap-static.json"
+    if args.refresh:
+        bootstrap = fetch_api.fetch_bootstrap(session)
+    elif cached.exists():
+        bootstrap = json.loads(cached.read_text(encoding="utf-8"))
+    else:
+        print("error: no live data yet; run with --refresh first")
+        return 1
+    nxt = fetch_api.next_event(fetch_api.parse_events(bootstrap))
+    gw, deadline = nxt if nxt else (None, None)
+    published = gw is not None and config.predictions_path(gw).exists()
+    due, reason = should_refresh(deadline, pd.Timestamp.now(tz="UTC"), published, args.force)
+    print(f"next gameweek: {gw} (deadline {deadline}); {'running' if due else 'skip'}: {reason}")
+    if not due:
+        return 0
+
+    if args.refresh:
+        from fPLense.etl.load_odds import build_odds_lake, download_odds, fetch_upcoming_odds
+
+        meta = fetch_api.refresh_live(session=session, bootstrap=bootstrap)
+        print(
+            f"live lake: {meta['history_rows']:,} rows through GW{meta['last_finished_gw']} "
+            f"({meta['players_fetched']} players fetched, {meta['zero_minute_players']} "
+            f"with 0 minutes) -> {config.LIVE_DIR}"
+        )
+        download_odds([config.CURRENT_SEASON])
+        n = build_odds_lake([config.CURRENT_SEASON])[config.CURRENT_SEASON]
+        upcoming = fetch_upcoming_odds(session)
+        upcoming.to_parquet(config.LIVE_UPCOMING_ODDS_PATH, index=False)
+        print(f"odds: {n} played matches, {len(upcoming)} upcoming (fixtures.csv E0)")
+
+    if args.predict:
+        from fPLense.models.predict import run_predict
+
+        out = run_predict(horizon=args.horizon)
+        latest, squad = out["latest"], out["squad"]
+        print(
+            f"predictions GW{latest['gws'][0]}-{latest['gws'][-1]} for {latest['players']} "
+            f"players ({latest['feature_rows']:,} fixture rows); "
+            f"odds sources {latest['odds_sources']}"
+        )
+        names = {p["element"]: p["name"] for p in squad["players"]}
+        print(
+            f"squad: cost £{squad['cost'] / 10:.1f}m, expected {squad['expected_points']:.1f} pts, "
+            f"captain {names[squad['captain']]}, vice {names[squad['vice']]}"
+        )
+        top = out["table"].nlargest(10, "P_h")[["web_name", "club_short", "pos", "p1", "P_h"]]
+        print(top.round(2).to_string(index=False))
+        print(f"-> {config.PUBLISHED_DIR / latest['files']['predictions']}")
     return 0
 
 

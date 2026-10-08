@@ -134,3 +134,31 @@ Template:
 - P5: write `explain.top_contributions(explain.shap_frame(model, rows))` into the predictions Parquet; build pools with `price = now_cost` (integer) and filter via `squad_ilp.eligible`.
 - P5's Model Card page should copy the SHAP/backtest images into `data/published/` (the app reads only that folder) or read the JSON summaries.
 - `explain.py` no longer forces the Agg backend (it blanked notebook plots); headless runs fall back to Agg automatically.
+
+## P5: Live API path + predictions + Streamlit app (2026-10-08)
+**Shipped:**
+- `etl/fetch_api.py`: bootstrap-static, fixtures, element-summary (disk cache per finished GW in `data/raw/fpl_api/`), picks; schema checks on every response (`SchemaError`); parsers for players / teams / events / fixtures / picks; 2026-27 `history` → lake schema; synthesized 0-minute rows for players who haven't played; `history_past` → `prev_season_pts_per90`; `refresh_live` writes `data/lake/live/`.
+- `etl/elo_goals.py`: Elo-only fallback. Poisson GLM `log λ = b0 + b1·elo_diff/100 + b2·home` fitted on the 7,600 historical team-matches; Skellam/Poisson → `p_win`, `p_clean_sheet`; rows labelled `source = "elo"`.
+- `etl/load_odds.py`: `fetch_upcoming_odds` (football-data `fixtures.csv`, `Div == "E0"`, closing columns dropped by the same `clean_odds`).
+- `models/predict.py`: upcoming fixtures appended as outcome-blanked rows and run through the **same DuckDB views** (one build per horizon GW, so every GW sees today's form); schedule-based `days_rest` for GW 2+; per-fixture LightGBM → GW sums (DGW/blank) → × availability → `P_h`; next-GW SHAP per player; default squad ILP; `latest.json`, `mae_by_gw.json` and model-card images copied to `data/published/`.
+- `pipeline.py --refresh --predict --horizon N [--force]`: deadline gate (runs only when the next deadline is < 48 h away and that GW isn't published; exit 0 otherwise).
+- `app/`: `Home.py` + `1_Projections.py` (filters, Plotly top 20, per-player SHAP waterfall, fixtures + odds source per GW), `2_Optimal_Squad.py` (budget / horizon / bench-weight sliders, live ILP, pitch layout, captain/vice, cost and money left), `3_Transfer_Planner.py` (team ID → picks, bank prefilled from the API, free transfers, T = 0..3 options with the recommended row highlighted, selling-price caveat), `4_Model_Card.py` (metrics with CIs, MAE by GW, ablation, SHAP, backtest, limitations). `shared.py` + `src/fPLense/app_data.py` (pure, tested helpers). The app reads only `data/published/` plus the picks call.
+- Tests: `test_fetch_api.py` (17), `test_predict.py` (20, incl. a synthetic current season through the real views with a DGW and a blank), `test_elo_goals.py` (5), `test_app_data.py` (8), `test_app_pages.py` (7: every page run headless with Streamlit `AppTest`; the planner is driven by `tests/fixtures/picks_sample.json`, no network).
+
+**Deferred:**
+- Visual check of the 4 pages in a browser: the developer runs `streamlit run app/Home.py` (CLAUDE.md: Claude doesn't launch the app). Headless `AppTest` runs of every page pass.
+- `prev_season_pts_per90` is published as context only, not a model feature (developer's choice: adding it means retraining and re-running the walk-forward). Stretch goal.
+- Streamlit Cloud needs the package installed (`-e .` in `requirements.txt` or equivalent): P6.
+
+**Measured (live run 2026-10-08, next GW6, deadline 2026-10-10 10:00 UTC):**
+- API: 667 players, 421 with minutes > 0 fetched (~3 min cold, ~1.5 min from cache); live lake **3,284 rows** through GW5 (246 players with 0 minutes synthesized).
+- Odds: 50 played 2026-27 matches; `fixtures.csv` had **0 E0 rows** (international break), so all 50 fixtures of GW6–10 used the Elo fallback. Elo goal model: b0 0.199, b1 0.189 per 100 Elo, home 0.195 (n = 7,600).
+- Predictions GW6–10: 3,335 fixture rows; mean next-GW points 2.77 for regulars vs 0.44 for others; top P_h Haaland 24.5, B. Fernandes 21.3, Saka 21.2. Injured (0%) and departed players → 0. SHAP base + Σ = raw prediction exactly.
+- Default squad (horizon 5): £99.8m, 199.2 expected points (discounted), captain B. Fernandes, vice Saka; all rules hold.
+- `--predict` alone: 12.6 s. Published folder 1.4 MB (predictions 106 KB, SHAP 221 KB per GW).
+- Checks: `ruff check` / `ruff format --check` clean; `pytest -q` 193 passed; `pytest -q -m data` 28 passed.
+
+**Follow-ups / notes:**
+- P6: the scheduled runner needs the historical lake (DuckDB views for the Elo goal model and the 2026-27 odds partition) and `data/raw/fpl_api/` isn't committed; cache `data/lake/` in Actions or rebuild it.
+- Odds features for upcoming fixtures are bookmaker-based only for the next round; most horizon fixtures use the Elo estimate, a mild train/serve shift (the ablation showed odds/Elo add ≈0, so the impact is small).
+- The planner's picks are the squad fielded in the last finished GW; transfers made since stay invisible until the next deadline passes.

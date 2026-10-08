@@ -146,3 +146,41 @@ Full lists in `tests/fixtures/api_fields.json`; trimmed samples (5 items per lis
 - C (greedy) uses LightGBM predictions, so A vs C isolates the optimizer and A vs B isolates the forecast.
 - CIs on total-point differences: bootstrap over the 34 gameweeks (same block idea as P3).
 - **Result kept as measured:** A trailed B by 75 points with a CI spanning ±200; no strategy tweaks were tried to make A win, and no backtest claim is made.
+
+## P5: Live API path, predictions, Streamlit app (2026-10-08)
+
+### Live data layout
+- **The 2026-27 season lives in `data/lake/live/`, not in `data/lake/player_match/`.** The training lake stays exactly the 10 completed seasons (253,578 rows, pinned by P1's schema tests), and `train.load_features` can never pick up an in-progress season by accident. Same schema, so the same views read it.
+- Raw API JSON goes to `data/raw/fpl_api/` (gitignored). `element-summary` responses are cached per *finished* GW (`element-summary/gw05/<id>.json`): a finished GW's history doesn't change, so a second run in the same GW makes no per-player calls.
+- **Who gets an `element-summary` call:** only players with minutes > 0 this season (PLAN's rule; 421 of 667). The other 246 get **synthesized 0-minute rows** for each finished fixture of their current club, which is what vaastav's `merged_gw` holds for them. Without those rows their form features would be NaN (= "first appearance") and the model would score unused squad players like cold starts. Approximations on those rows: `value` = today's price, `selected` = today's ownership, transfer counts NaN.
+- History rows are kept only for fixtures the fixtures endpoint marks `finished`, and each row's own team comes from the fixture's side (as in P1), so a mid-season mover is credited correctly.
+
+### Feature rows for upcoming fixtures
+- **Reuse the views, don't re-implement them.** Each upcoming fixture becomes a lake row with every outcome blanked (points, minutes, stats, scores, ownership, transfers): exactly the truncated lake the P2 leakage test proves gives the training features. `v_features` is read back for that GW, so there is no second copy of the feature logic to drift.
+- **One view build per horizon GW** (history + that GW's fixtures only). With all 5 GWs in one build, GW 8's windows would average over blank GW 6-7 rows (`avg` skips NULLs, so `pts_r5` would quietly become a 3-match average and `pts_last1` NULL). Per-GW builds give every GW the form as it stands today; a synthetic-season test checks GW 5 sees the same `pts_last1/pts_r3/pts_r5` as GW 4. Each build covers only the small current season (~2 s).
+- `days_rest` is known from the schedule, so for GW 2+ of the horizon it is recomputed from the club's previous *scheduled* fixture (the view would count from the last played match, weeks earlier). GW 1 keeps the view's value, identical to training.
+- Rows are scored with `train.lgbm_frame` (fixed position categories) on `model.txt`; no retraining in the live path.
+
+### Odds and the Elo fallback
+- `fixtures.csv` E0 rows go through the same `clean_odds` (closing columns dropped first). On 2026-10-08 it had 0 E0 rows (international break), so all of GW 6-10 used the fallback.
+- **Elo-only estimate = Poisson GLM** `log lambda = b0 + b1*elo_diff/100 + b2*home`, fitted (sklearn `PoissonRegressor`, no penalty) on all 7,600 historical team-matches with the same pre-GW Elo the views use. Fitted: b0 0.199, b1 0.189 (+100 Elo = about +21% goals), home 0.195 (about +22%). The lambdas go through the same independent-Poisson maths as the odds path (Skellam for win/draw/loss, `exp(-lambda_opp)` for a clean sheet) and are written as odds-lake rows with `source = "elo"`, so the SQL is unchanged and `odds_source` records the choice per fixture.
+- Elo for a future fixture: latest snapshot strictly before the GW's first kick-off (the `v_match_odds` rule).
+- Known shift: the model was trained on bookmaker-implied features; most horizon fixtures get Elo-implied ones. Accepted because the P3 ablation showed odds/Elo add about 0 to MAE.
+
+### Prediction assembly
+- GW points = sum of per-fixture predictions (DGW 2 fixtures, blank 0) x availability. Availability = `chance_of_playing_next_round / 100`, NaN -> 100%, status `u` -> 0, applied to **every** horizon GW (FPL publishes no later-GW estimate; conservative for injured players, who are filtered from the ILP at 0% anyway).
+- `P_h` = sum of 0.9^j x GW points over the horizon; the app recomputes it for horizons 1-5 from the published per-GW columns.
+- SHAP: LightGBM `pred_contrib` on the next GW's rows, summed over a DGW's fixtures (additivity holds), stored as float32 with the first fixture's feature values. The waterfall shows the raw prediction; the page states the availability factor separately.
+- `prev_season_pts_per90` (from `history_past`, season name `"2025/26"`) is **published context only, not a model feature** (developer's choice; adding it needs a retrain and a new walk-forward).
+
+### Pipeline gate
+- `--refresh/--predict` check the next deadline first (one bootstrap call, or the cached one for `--predict` alone) and exit 0 unless it's < 48 h away and `predictions_gwXX.parquet` doesn't exist; `--force` overrides. Daily cron + this gate = one refresh per GW before its deadline (PLAN §0.4).
+- `latest.json` points the app at the newest files; earlier weeks' predictions stay committed as history.
+
+### App
+- **`src/fPLense/app_data.py` holds every non-UI helper** (loaders, horizon recompute, filters, waterfall data, pitch grouping, metrics table) as plain pandas, unit-tested without Streamlit. `app/shared.py` only adds `st.cache_data` (10-minute TTL so a pushed refresh shows up) and shared UI bits.
+- Pages re-solve the ILP live (`st.cache_data` keyed on file + settings, ~2 s) rather than only showing the published squad, so the sliders mean something.
+- Transfer Planner: picks for the last finished GW (the next GW's picks stay private until its deadline); bank prefilled from `entry_history.bank` and editable; free transfers user-entered (the API doesn't expose them); the recommended row is highlighted and the selling-price caveat is shown.
+- Page smoke tests use Streamlit's `AppTest` (runs a page script headless, no server), which the CLAUDE.md "don't launch the app" rule allows; the Transfer Planner test injects the saved picks into session state, so no network call happens.
+- `use_container_width` is deprecated in Streamlit 1.65; pages use `width="stretch"`.
+- The saved picks sample (`tests/fixtures/picks_sample.json`) is the developer's own team, with their consent.

@@ -132,7 +132,9 @@ difference is within noise. No backtest claim is made.
 - **Rotation and injuries.** The model sees only lagged minutes; it can't know a manager's team
   news. Live predictions are scaled by FPL's `chance_of_playing_next_round`, which is coarse.
 - **Cold start.** New signings and promoted players have no rolling form for their first fixtures
-  (features are NaN); predictions for them lean on price and position.
+  (features are NaN); predictions for them lean on price and position. Last season's points per 90
+  (`prev_season_pts_per90`, from the API's `history_past`) is published next to the predictions
+  for context but is not a model feature.
 - **2026/27 BPS rule change** (no penalty for being tackled, +1 BPS per 3 CBI, more for GK saves)
   shifts bonus points. The model is trained on the old rules: monitor residuals by position.
 - **DEFCON** points only exist since 2025-26, so `defcon_r5` is NaN for 9 of the 10 seasons.
@@ -143,12 +145,16 @@ difference is within noise. No backtest claim is made.
 - **No chips**, and the transfer planner values the current squad at `now_cost` because the public
   API doesn't expose selling prices.
 - Odds for upcoming fixtures only exist for the next round (and not during international breaks);
-  the live path falls back to an Elo-only estimate (P5), recorded per fixture in `odds_source`.
+  the live path falls back to an Elo-only estimate, recorded per fixture in `odds_source`: a Poisson
+  regression of goals on Elo difference and home advantage over the 10 seasons
+  (log λ = 0.199 + 0.189·elo_diff/100 + 0.195·home). The model was trained on bookmaker-implied
+  values, so this is a small train/serve shift (odds/Elo add ≈0 MAE in the ablation).
 
 ## Retraining
 
-- `python -m fPLense.pipeline --train` refits on every completed season (and, in season, on the
-  current season's history) and writes `model.txt`.
+- `python -m fPLense.pipeline --train` refits on the 10 completed seasons and writes `model.txt`.
+  The in-progress season (`data/lake/live/`) is used for features, not training; folding it into
+  training is a follow-up.
 - Cadence: monthly during the season, or after a rule change; re-run `--evaluate` before replacing
   the published model, and never tune against the walk-forward test GWs.
 - Predictions refresh once per gameweek (GitHub Actions daily check that runs only when the next
