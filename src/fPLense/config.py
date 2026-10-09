@@ -200,7 +200,8 @@ XI_MIN: dict[str, int] = {"GK": 1, "DEF": 3, "MID": 2, "FWD": 1}  # GK is exactl
 MAX_PER_CLUB = 3
 HIT_COST = 4  # points per transfer beyond the free ones
 MAX_FREE_TRANSFERS = 5
-MAX_TRANSFERS_PLANNED = 3
+MAX_TRANSFERS_PLANNED = 3  # P4 planner default (backtest, notebooks)
+MAX_TRANSFERS_PLAN = 5  # the API planner: T = 0..5 (PLAN.md §8 P6)
 HORIZON = 3  # default number of gameweeks the optimizer looks ahead
 HORIZON_DISCOUNT = 0.9  # weight of GW t+j is 0.9**j
 BENCH_WEIGHT = 0.1
@@ -251,3 +252,38 @@ def shap_path(gw: int) -> Path:
 
 def squad_path(gw: int) -> Path:
     return PUBLISHED_DIR / f"squad_gw{gw:02d}.json"
+
+
+# --- season history, ratings, team codes (PLAN.md §8 P6) ------------------------------------
+
+HISTORY_DIR = PUBLISHED_DIR / "history"  # per-GW archive history/gwXX/ (write-once)
+ACTUALS_PATH = PUBLISHED_DIR / f"actuals_{CURRENT_SEASON}.parquet"
+FIXTURES_PUBLISHED_PATH = PUBLISHED_DIR / "fixtures.json"  # the season's schedule + results
+RATINGS_PATH = PUBLISHED_DIR / "ratings.json"
+MODEL_META_PATH = PUBLISHED_DIR / "model_meta.json"  # sha256 + training cut-off of model.txt
+HISTORY_HORIZON = PREDICT_HORIZON_MAX  # archived squads: £100m, horizon 5, bench weight 0.1
+# Player photos are hotlinked from the Premier League CDN, never downloaded (PLAN.md §0.3).
+# Path checked on 2026-10-09 (HTTP 200 for code 154561).
+PHOTO_URL_TEMPLATE = (
+    "https://resources.premierleague.com/premierleague25/photos/players/110x140/{code}.png"
+)
+
+
+def history_gw_dir(gw: int, root: Path = HISTORY_DIR) -> Path:
+    return Path(root) / f"gw{gw:02d}"
+
+
+# --- API (PLAN.md §8 P6) -------------------------------------------------------------------
+
+API_CORS_ENV = "FPLENSE_CORS_ORIGINS"  # comma-separated allowed origins
+API_CORS_DEFAULT = "http://localhost:5173,http://127.0.0.1:5173"  # Vite dev server
+API_PUBLISHED_ENV = "FPLENSE_PUBLISHED_DIR"  # override data/published/ (tests, deploys)
+API_CACHE_MAX_AGE_S = 300  # Cache-Control on responses built from published data
+API_RATE_CAPACITY = 20  # per-IP token bucket on /entry, /optimize, /transfers, /compare
+API_RATE_REFILL_PER_S = 0.5  # one token every 2 s
+API_SOLVER_TIME_LIMIT_S = 20  # CBC time limit per ILP solved on request
+FPL_PROXY_TTL_S = 600  # entry, history, current-GW picks
+FPL_PROXY_LRU_SIZE = 2048  # picks of finished GWs (never change), least recently used dropped
+FPL_PROXY_TIMEOUT_S = 15
+FPL_PROXY_RETRIES = 2
+WEB_OPENAPI_PATH = ROOT / "web" / "openapi.json"

@@ -184,3 +184,73 @@ Full lists in `tests/fixtures/api_fields.json`; trimmed samples (5 items per lis
 - Page smoke tests use Streamlit's `AppTest` (runs a page script headless, no server), which the CLAUDE.md "don't launch the app" rule allows; the Transfer Planner test injects the saved picks into session state, so no network call happens.
 - `use_container_width` is deprecated in Streamlit 1.65; pages use `width="stretch"`.
 - The saved picks sample (`tests/fixtures/picks_sample.json`) is the developer's own team, with their consent.
+
+## P6: FastAPI backend + season-history data layer (2026-10-09)
+
+### Streamlit out, FastAPI in
+- **Why:** drag-and-drop team building, a 3-team compare, shareable URLs and a polished mobile UI are hard in Streamlit; splitting a typed API from a React frontend is also the stronger full-stack signal, and it keeps the model offline: the server only reads published files and solves ILPs.
+- Deleted `app/`, `tests/test_app_pages.py`, `streamlit`/`plotly`. `app_data.py` → `published.py` (pure helpers reused by the API: `headline`, `waterfall_data`, `with_horizon`...).
+- Installed FastAPI 0.143 / pydantic 2.14 / Starlette 1.7. Ruff's B008 (call in argument default) is whitelisted for `fastapi.Depends/Query/Path`: that's FastAPI's idiom.
+
+### Card ratings: FPLense rating only (developer's choice)
+- The EA SPORTS FC dataset was **dropped** (PLAN's cut list allows it). Candidates checked on Kaggle on 2026-10-09 for the record: `justdhia/ea-sports-fc-26-player-ratings` (CC0, updated 2026-03-18), `rovnez/fc-26-fifa-26-player-data` (CC BY 4.0, 2025-09-21), `flynn28/eafc26-player-database` (GPL-3.0). No `rapidfuzz` dependency, no overrides CSV.
+- `rating = round(50 + 49 × percentile of P_h within position)` among available players (status not `u`, availability > 0); percentile = share of available same-position players with a lower value (+ half the ties), so the worst is 50 and the best 99. Unavailable players are placed on the same scale (a long injury reads low instead of disappearing). Published as `ratings.json` (`element → {code, rating}`, `source: "fplense"`); `--predict` rewrites it each GW, `--ratings` on demand.
+- **Photo URL confirmed:** `https://resources.premierleague.com/premierleague25/photos/players/110x140/{code}.png` → HTTP 200 (code 154561); the `p{code}` form under `premierleague25` → 403; `premierleague26` → 502. Only the URL is built; images are never fetched by the backend.
+
+### Model identity and the write-once archive
+- `model_meta.json` (sha256 of `model.txt` + `train_max_season`) is what the archive and the backfill refusal read. `train_final` now writes it. For the committed P3 model it was written once on 2026-10-09 with `train_max_season = 2025-26`: `train.load_features` reads only the 10-season lake (`data/lake/player_match/`, the live season lives apart in `data/lake/live/`), so that is a fact, not a guess. A meta whose hash doesn't match `model.txt` raises ("rerun --train").
+- `history/gwXX/` is written once; a second write raises `ArchiveExistsError`. `--predict` archives its GW as `live` (a GW already archived is left alone, so `--predict --force` can't rewrite history). `--force-history` rebuilds **backfilled** GWs only; a live archive is never replaced by a backfill.
+- **GW6 was archived as `live`** from `predictions_gw06.parquet` / `squad_gw06.json`, which the live path wrote on 2026-10-08 before the GW6 deadline (`made_at` = `latest.json.generated_at`). `--history` does this for any published predictions file without an archive.
+
+### As-of backfill (GW1-5)
+- Same mechanism as the P2 leakage test and the live path: lake truncated to GWs `< k`, GW k's fixtures appended with every outcome blanked, read back through the same views (`predict.horizon_features`). A test checks the backfilled GW k features equal the full lake's GW k features exactly, and that changing GW k outcomes doesn't move them while changing GW k-1 does.
+- Club and price per player come from his **GW k lake row** (latest earlier row if his club blanked); players whose first lake row is after GW k are dropped. Approximation: 0-minute players' synthesized rows (P5) carry today's price and exist for every finished fixture of today's club, so their GW-k price and registration date are today's. Affects only players who never played, and the archive says `backfill`.
+- **Odds:** pre-closing `E0.csv` rows only for GW k's own fixtures (football-data collects them the Friday before the round); later horizon GWs use the Elo estimate, exactly as the live path would have at that deadline. Elo snapshots are cut to dates before GW k's first kick-off.
+- Availability unknown for past GWs → 100% (`status a`, chance NaN), stated in `meta.caveat`.
+- Squad: the default ILP (£100m, horizon 5, bench weight 0.1) on the backfilled table.
+
+### Actuals, hindsight, summary
+- `actuals_2026-27.parquet` per (element, gw): points and minutes summed over a DGW, `price` = first fixture's `value`, `fixtures` (club fixtures) and `fixtures_played` (appearances).
+- **Hindsight-best** = the squad ILP with `p1 = P_h = actual points`, bench weight 0, that GW's prices, £100m, all rules. With bench weight 0 the ILP's captain term picks the best actual starter. It's not FPL's Dream Team (no budget/quotas there).
+- Model-pick actual points reuse `backtest.score_gw` (auto-subs in bench order keeping a legal formation, captain doubled, vice if the captain didn't play). Players whose club blanked score 0. Chips are ignored.
+- Capture ratio = model actual / hindsight-best, **not clipped**. It can't exceed 1 when both squads are priced the same; the only theoretical way above 1 is a price rise between the live prediction and the deadline making the model pick cost > £100m at GW-k prices. Product stat only, never a resume claim.
+- `fixtures.json` (schedule, FDR, results) is published so the API can build fixture tickers without the lake.
+
+### Optimizer extensions
+- `pick_squad(locked, banned)`: locks bypass the availability filter (you may want an injured player you already own). `check_locks` fails fast with a cause before solving: `quota` (too many of a position), `club limit`, `budget` (locked cost + cheapest fill of the other slots > budget), `conflict` (locked and banned); anything else that's infeasible says so generically. API → 422 `{detail, kind}`.
+- `best_lineup`: the squad ILP with every `x_i` fixed to 1, no budget and no club limit (the squad is given). The lineup helper passes next-GW points as both `p1` and `P_h`.
+- `rule_problems` works on 0-15 players (for the builder's live chips); the budget can be reported without being a violation (`enforce_budget=False` for real teams and codes).
+- **Planner T = 0..5** (`config.MAX_TRANSFERS_PLAN`); the P4 default of 3 (`MAX_TRANSFERS_PLANNED`) stays for the backtest.
+- **Path to the target is nested, one move per step.** Solving each T independently gives optimal-but-unrelated move sets (T = 2 might sell different players than T = 1), which can't be shown as an ordered stepper and broke like-for-like pairing. Step T keeps the T-1 earlier moves (`force_in`/`force_out`) and adds the best next one among `target - current` buys and `current - target` sales. Greedy in order, but every step's marginal gain is real and the moves are a sequence the user can follow over weeks. PLAN's "cumulative gain non-decreasing in free moves" is tested as: for each step, more free transfers never lower the net gain, and hits = 4 × max(0, moves − free).
+- Recommendation text: make the number of moves with the best net gain now (with free transfers or naming the hits), the rest with later free transfers.
+
+### Making the ILP fast enough to serve
+- First API timing: `/transfers/plan` p50 ≈ 40 s. Two fixes, both keeping exact optimality:
+  1. **`df.at` → dict lookups** in the constraint/objective builders, and `validate_pool` keeps only the solver's columns as plain numpy/object columns. pandas `.at` on the wide API frame (Arrow strings) cost ~0.1 ms × ~56k lookups per plan.
+  2. **Dominance pruning** (`prune_dominated`): drop player `i` when same-position players that cost no more and have `p1` and `P_h` at least as high span ≥ `quota + 5` distinct clubs. Proof sketch: in any squad containing `i`, at most `quota − 1` of those dominators are already picked and at most 5 clubs (15 / 3) are full, so one dominator can replace `i` at no extra cost with an objective at least as high; dominance is a strict order, so repeating ends at an optimal squad without pruned players. Owned/locked players are never pruned or used as dominators. Real GW6 pool: 485 → 230 players; identical objectives on 4 settings and in a randomized test.
+- Result: `/optimize` ~0.9-1.1 s, `/transfers/plan` (T = 0..5 + a 12-step path) ~2.5 s locally (PROGRESS.md P6 has the measured p95s).
+- CBC gets a 20 s `timeLimit` on request-time solves (free-tier protection).
+
+### Team codes
+- Payload exactly as PLAN: version u8, season u16 (2627), 15 × u16 ids (XI GK→FWD then bench order), `captain_idx << 4 | vice_idx`, CRC-8, big-endian = 35 bytes = **56 Crockford base32 chars**, no padding. Full code `FPLN-2627-…` is **66 characters** (PLAN said ≈ 60).
+- **CRC-8/SMBUS** (poly 0x07, init 0, check value 0xF4 for "123456789", pinned in the vectors so TypeScript can verify its CRC first). Any error burst ≤ 8 bits is detected, and one base32 character is 5 bits, so every single-character substitution is caught (tested exhaustively on 3 vectors: 56 × 31 typos each).
+- Lenient form: any case, whitespace anywhere, optional dashes, `I/L → 1`, `O → 0`, share URLs (`?t=`). Strict content, each with its own `kind`: `junk`, `typo` (length, alphabet, checksum, or an edited season label), `version`, `season`, `duplicate`, `captain`, then (against the player list) `unknown`, `shape`, `club`. Budget reported (`over_budget`), never enforced.
+- Vectors in `tests/fixtures/team_code_vectors.json` use **synthetic** players; generated by `scripts/make_team_code_vectors.py`.
+
+### API design
+- `Store` loads each published file on first use and caches it with its mtime; a changed file reloads on the next request. No ETL/DuckDB/LightGBM/SHAP/sklearn import anywhere on the API path (a test imports `fPLense.api.main` in a subprocess and checks `sys.modules`).
+- A **GW context** = the player pool for one GW: live predictions for GWs in the current horizon, else the frozen archive, with actuals joined once the GW is finished. Every squad response (`Squad`) carries XI/bench/captain/vice, expected points for the GW and per horizon GW, actual points if finished, cost, rule problems and its **team code**.
+- GET responses from published data get `Cache-Control: public, max-age=300` and an `ETag` (SHA-1 of the body, `If-None-Match` → 304) from one middleware; `/api/entry/*` and `/api/health` are excluded. GZip ≥ 1 KB (`/api/players` 670 KB → 47 KB).
+- Errors are JSON `{detail, kind}`: 404 not found, 422 bad input / infeasible locks (`kind` = cause) / bad codes (`kind` = code error), 429 + `Retry-After`, 503 not published or FPL updating (+ `Retry-After: 60`), 502 other upstream failures.
+- Per-IP **token bucket** (20 requests, refilled 1 every 2 s) on `/entry/*`, `/squads/optimize`, `/transfers/*`, `/compare`. CORS from `FPLENSE_CORS_ORIGINS` (default the Vite dev server), methods GET/POST only.
+- **FPL proxy**: async `httpx`, one global limiter (≥ 0.25 s between upstream calls), retries with backoff on network errors / 429 / 5xx, schema checks (`fetch_api.check_entry`, `check_entry_history`, `check_picks`). TTL 10 min for `entry`, `history` and current-GW picks; finished-GW picks in an LRU (2,048) with no expiry. Upstream 404 → "No FPL team with ID …" (or "No picks for … GW n" for picks before the deadline).
+- Extra endpoint `GET /api/model` (metrics, MAE by GW, SHAP importance, backtest) for P7's Model Card page.
+- `/entry/{id}/gw/{gw}` resolves picks on that GW's pool (archived expected + actual points) and runs the lineup helper on `predict_gw` (default: the same GW). `/transfers/plan` with a `team_id` uses the picks of the entry's `current_event` and pre-fills the bank from them.
+- `web/openapi.json` is written by `python -m fPLense.api.export_openapi`; a test fails on drift.
+- Saved `tests/fixtures/entry_sample.json` and `entry_history_sample.json` from the developer's own team (same consent as the P5 picks sample; leagues list emptied).
+- API tests run on `tests/published_mini.py`, a synthetic published folder **built at test time** with the pipeline's own writers (60 players, GW1 backfilled, GW2 live, GW3 next) instead of committed binary Parquet, and a `MockTransport` fake of the FPL API. No network in any test.
+
+### Found while checking the phase
+- **Backtest tie-breaking.** Rerunning `--backtest` after the pruning change gave A 1,751 (same), C 1,844 (same), **B 1,842 (was 1,826)**; A − B −91 [−299, +102], still not significant. Cause: B0 predictions are averages of integer points, so many squads tie on the objective (only 16.7% of GW5 regulars' B0 values are distinct vs 100% for LightGBM); pruning changes which tied optimum CBC returns, and the one-path backtest then diverges. The committed P4 artifacts (`backtest.json`, `backtest_cumulative.png`, model card) were **kept at the P4 run**; a future `--backtest` will print ~1,842 for B. Neither number is a claim; the conclusion (no significant decision-layer gain) holds either way.
+- **httpx client per event loop.** The proxy first created its `AsyncClient` at app creation; a request on a second event loop (TestClient without `with`, a reloaded worker) reused a pooled connection tied to a closed loop → `RuntimeError: Event loop is closed`. The client (and the limiter's lock) are now created lazily inside the running loop and rebuilt when the loop changes. Found by a real-FPL smoke call; regression test added (MockTransport has no pool, so the offline tests couldn't see it).
+- **Real-data check of the scoring:** for the developer's team, `/api/entry/{id}/gw/5` scored the GW5 picks at **56**, FPL's official 56, with the same auto-sub (165 → 15) FPL applied.

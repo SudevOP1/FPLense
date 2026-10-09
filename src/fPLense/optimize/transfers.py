@@ -24,11 +24,14 @@ from fPLense.optimize.squad_ilp import (
     add_rule_constraints,
     add_squad_variables,
     eligible,
+    prune_dominated,
     result_from_selection,
     solve,
     squad_objective_expr,
     validate_pool,
 )
+
+SQUAD_SIZE = sum(config.SQUAD_QUOTAS.values())
 
 
 @dataclass
@@ -48,10 +51,10 @@ def _pool_for(df: pd.DataFrame, current: list[int], filter_unavailable: bool) ->
     if missing:
         raise ValueError(f"current squad players missing from the pool: {missing}")
     if not filter_unavailable:
-        return validate_pool(df)
+        return prune_dominated(validate_pool(df), keep=current)
     # never drop the current squad (they must be sellable); filter only the buy candidates
     buyable = eligible(df.drop(index=current))
-    return validate_pool(pd.concat([df.loc[current], buyable]))
+    return prune_dominated(validate_pool(pd.concat([df.loc[current], buyable])), keep=current)
 
 
 def best_transfers(
@@ -63,9 +66,17 @@ def best_transfers(
     bench_w: float = config.BENCH_WEIGHT,
     filter_unavailable: bool = True,
     _pool: pd.DataFrame | None = None,
+    buy_from=None,
+    sell_from=None,
+    force_in=(),
+    force_out=(),
 ) -> TransferOption:
-    """Best squad reachable with exactly ``n_transfers`` moves. Raises if none is legal."""
-    if len(set(current)) != sum(config.SQUAD_QUOTAS.values()):
+    """Best squad reachable with exactly ``n_transfers`` moves. Raises if none is legal.
+
+    ``buy_from`` / ``sell_from`` restrict which players may come in / go out (target mode);
+    ``force_in`` / ``force_out`` fix moves already made (the path's earlier steps).
+    """
+    if len(set(current)) != SQUAD_SIZE:
         raise ValueError(f"current squad must have 15 distinct players, got {len(set(current))}")
     pool = _pool if _pool is not None else _pool_for(df, current, filter_unavailable)
     ids = list(pool.index)
@@ -74,21 +85,30 @@ def best_transfers(
 
     m = pulp.LpProblem(f"fplense_transfers_{t}", pulp.LpMaximize)
     x, y, c = add_squad_variables(m, ids)
-    tin = pulp.LpVariable.dicts("in", [i for i in ids if i not in s0], cat="Binary")
-    tout = pulp.LpVariable.dicts("out", [i for i in ids if i in s0], cat="Binary")
+    can_buy = set(ids) - s0 if buy_from is None else set(buy_from) - s0
+    can_sell = s0 if sell_from is None else set(sell_from) & s0
+    tin = pulp.LpVariable.dicts("in", [i for i in ids if i in can_buy], cat="Binary")
+    tout = pulp.LpVariable.dicts("out", [i for i in ids if i in can_sell], cat="Binary")
     h = pulp.LpVariable("hits", lowBound=0, cat="Integer")
 
     m += squad_objective_expr(pool, x, y, c, bench_w) - config.HIT_COST * h
     for i in ids:
-        if i in s0:
+        if i in tout:
             m += x[i] == 1 - tout[i], f"keep_or_sell_{i}"
-        else:
+        elif i in tin:
             m += x[i] == tin[i], f"buy_{i}"
+        else:
+            m += x[i] == (1 if i in s0 else 0), f"fixed_{i}"
+    for i in force_in:
+        m += tin[i] == 1, f"force_in_{i}"
+    for i in force_out:
+        m += tout[i] == 1, f"force_out_{i}"
     m += pulp.lpSum(tin.values()) == t, "n_in"
     m += pulp.lpSum(tout.values()) == t, "n_out"
     m += h >= t - int(free_transfers), "hits"
     value_s0 = int(pool.loc[list(s0), "price"].sum())
-    m += pulp.lpSum(pool.at[i, "price"] * x[i] for i in ids) <= value_s0 + int(bank), "budget"
+    price = pool["price"].to_dict()
+    m += pulp.lpSum(price[i] * x[i] for i in ids) <= value_s0 + int(bank), "budget"
     add_rule_constraints(m, pool, x, y, c)
     status = solve(m)
 
@@ -163,3 +183,125 @@ def options_table(options: list[TransferOption], names: pd.Series | None = None)
             "bank_after": [o.bank_after / 10 for o in options],
         }
     )
+
+
+# --- the API's planner: T up to 5 and "path to a target squad" (PLAN.md §8 P6) ----------------
+
+
+def pair_moves(df: pd.DataFrame, outs: list, ins: list) -> list[tuple]:
+    """Pair sold and bought players like for like (the 2-5-5-3 quotas force equal position
+    counts): within a position, the weakest sale goes with the strongest buy."""
+    pairs = []
+    for pos in config.SQUAD_QUOTAS:
+        o = sorted((i for i in outs if df.at[i, "pos"] == pos), key=lambda i: df.at[i, "P_h"])
+        n = sorted((i for i in ins if df.at[i, "pos"] == pos), key=lambda i: -df.at[i, "P_h"])
+        pairs += list(zip(o, n, strict=False))
+    return pairs
+
+
+@dataclass
+class PathStep:
+    n_moves: int
+    option: TransferOption
+    new_out: int  # the move this step adds (sold, bought)
+    new_in: int
+    gain_before_hits: float  # cumulative objective gain vs holding, ignoring hits
+    hits: int
+    net_gain: float  # gain_before_hits - hits
+
+
+def path_to_target(
+    df: pd.DataFrame,
+    current: list[int],
+    target: list[int],
+    bank: int,
+    free_transfers: int = 1,
+    bench_w: float = config.BENCH_WEIGHT,
+) -> list[PathStep]:
+    """An ordered path of single moves from ``current`` towards ``target`` (usually the model's
+    best squad).
+
+    Buys come only from ``target - current`` and sales only from ``current - target``. Step T
+    keeps the T - 1 earlier moves and adds the one that raises the objective most, so the
+    stepper is nested and every step shows that move's marginal expected gain. The path stops
+    where the budget can't make another move.
+    """
+    s0, star = set(current), set(target)
+    buys, sells = sorted(star - s0), sorted(s0 - star)
+    free = max(0, min(int(free_transfers), config.MAX_FREE_TRANSFERS))
+    # only the current squad and the target's players can be involved: a tiny ILP per step
+    pool = validate_pool(df.loc[list(dict.fromkeys(list(current) + buys))])
+    hold = best_transfers(df, current, bank, free, 0, bench_w, _pool=pool)
+    steps: list[PathStep] = []
+    outs: list[int] = []
+    ins: list[int] = []
+    for t in range(1, len(sells) + 1):
+        try:
+            opt = best_transfers(
+                df,
+                current,
+                bank,
+                free,
+                t,
+                bench_w,
+                _pool=pool,
+                buy_from=buys,
+                sell_from=sells,
+                force_in=ins,
+                force_out=outs,
+            )
+        except InfeasibleSquadError:
+            break
+        opt.gain_vs_hold = opt.objective - hold.objective
+        new_out = next(i for i in opt.outs if i not in outs)
+        new_in = next(i for i in opt.ins if i not in ins)
+        outs.append(new_out)
+        ins.append(new_in)
+        before = opt.result.objective - hold.result.objective
+        steps.append(PathStep(t, opt, new_out, new_in, before, opt.hits, before - opt.hits))
+    return steps
+
+
+def recommend_text(
+    steps: list[PathStep], free_transfers: int, hit_cost: int = config.HIT_COST
+) -> tuple[int, str]:
+    """``(moves to make now, plain-English advice)`` for a path to the target squad."""
+    if not steps:
+        return 0, "Your squad already matches the target, or the budget can't reach any move."
+    best = max(steps, key=lambda s: (round(s.net_gain, 6), -s.n_moves))
+    total = steps[-1]
+    if best.net_gain <= 0:
+        return 0, (
+            "Hold this week: no move towards the target squad adds expected points after hits."
+        )
+    n, rest = best.n_moves, total.n_moves - best.n_moves
+    free = max(0, int(free_transfers))
+    how = "with your free transfers" if n <= free else f"taking {n - free} hit(s) of -{hit_cost}"
+    text = f"Make {n} now {how} (+{best.net_gain:.1f} expected points over the horizon)."
+    if rest > 0:
+        extra = total.gain_before_hits - best.gain_before_hits
+        text += (
+            f" The other {rest} add {extra:+.1f} together: make them with next weeks' free "
+            f"transfers; each is worth a -{hit_cost} hit now only if it adds more than {hit_cost}."
+        )
+    return n, text
+
+
+def plan(
+    df: pd.DataFrame,
+    current: list[int],
+    bank: int,
+    free_transfers: int = 1,
+    max_transfers: int = config.MAX_TRANSFERS_PLAN,
+    target: list[int] | None = None,
+    bench_w: float = config.BENCH_WEIGHT,
+) -> dict:
+    """Options for T = 0..max_transfers (up to 5) plus, with ``target``, the path to it."""
+    t_max = max(0, min(int(max_transfers), config.MAX_TRANSFERS_PLAN))
+    options = plan_transfers(df, current, bank, free_transfers, t_max, bench_w)
+    out = {"options": options, "recommended": recommended(options), "path": None}
+    if target is not None:
+        steps = path_to_target(df, current, target, bank, free_transfers, bench_w)
+        n_now, text = recommend_text(steps, free_transfers)
+        out["path"] = {"steps": steps, "make_now": n_now, "advice": text}
+    return out

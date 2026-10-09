@@ -162,3 +162,34 @@ Template:
 - P6: the scheduled runner needs the historical lake (DuckDB views for the Elo goal model and the 2026-27 odds partition) and `data/raw/fpl_api/` isn't committed; cache `data/lake/` in Actions or rebuild it.
 - Odds features for upcoming fixtures are bookmaker-based only for the next round; most horizon fixtures use the Elo estimate, a mild train/serve shift (the ablation showed odds/Elo add ≈0, so the impact is small).
 - The planner's picks are the squad fielded in the last finished GW; transfers made since stay invisible until the next deadline passes.
+
+## P6: FastAPI backend + season-history data layer (2026-10-09)
+**Shipped:**
+- Streamlit removed: `app/`, `tests/test_app_pages.py`, `streamlit`/`plotly` gone; `app_data.py` → `published.py` (`test_published.py`). `requirements.txt` + `fastapi`, `uvicorn[standard]`, `httpx`. CLAUDE.md, README stub updated.
+- `models/history.py` + `pipeline.py --history [--force-history]`: write-once `history/gwXX/` (`predictions.parquet`, `squad_pred.json`, `meta.json`, `squad_hindsight.json`), as-of backfill (truncated lake through the same views, GW-k prices/clubs, own-round bookmaker odds only, Elo cut before the GW, refusal if the model saw 2026-27), `actuals_2026-27.parquet`, `history/season.json`, `history/summary.json`, `fixtures.json`. `--predict` now archives its GW as `live` and writes ratings + fixtures. `model_meta.json` (model hash + training cut-off; `--train` writes it).
+- `optimize/hindsight` logic in `history.hindsight_squad` (same ILP on actual points, bench weight 0, that GW's prices).
+- `team_code.py`: versioned, season-tagged, CRC-8 Crockford-base32 codes (`FPLN-2627-…`, 66 chars), forgiving input, specific errors; `tests/fixtures/team_code_vectors.json` + `scripts/make_team_code_vectors.py` for P7's TypeScript port.
+- `etl/ratings.py` + `--ratings`: FPLense card rating (EA FC dropped, developer's choice) and hotlinked photo URLs (CDN path confirmed).
+- Optimizer: `pick_squad(locked, banned)` with named infeasibility causes, `best_lineup`, `rule_problems`, `evaluate_squad`, `score_actual`; planner T = 0..5 and a nested path to the best squad with plain-English advice; dominance pruning + dict lookups (same optima, ~10× faster).
+- `src/fPLense/api/`: `main.py` (app factory, CORS, gzip, ETag/Cache-Control, JSON errors), `schemas.py`, `store.py` (mtime-reloading reader), `views.py` (GW contexts, squads), `deps.py` (per-IP token bucket), `fpl_proxy.py` (async httpx, limiter, retries, schema checks, TTL + LRU), `export_openapi.py`, routers `meta` (+ `/api/model`), `players`, `squads`, `history`, `entry`, `transfers`, `compare`, `codes`. `web/openapi.json` exported.
+- Tests (+136, all offline): `test_team_code.py` (37), `test_history.py` (13), `test_hindsight.py` (7), `test_ratings.py` (6), `test_squad_constraints.py` / `test_transfers.py` extended (+19), `test_fetch_api.py` (+2 entry samples), `test_api_meta_players.py`, `test_api_squads.py`, `test_api_entry.py`, `test_api_tools.py`, `test_api_infra.py` (55 together) on a synthetic `published_mini` folder built at test time + an `httpx.MockTransport` FPL. New samples `tests/fixtures/entry_sample.json`, `entry_history_sample.json` (developer's team).
+
+**Deferred:**
+- EA SPORTS FC ratings: dropped, not deferred (developer's choice); cards show the FPLense rating.
+- Browsing `/docs` and trying `/api/entry/{id}` in a browser: the developer runs `uvicorn` (CLAUDE.md). The same endpoints were exercised in-process with `TestClient`, including 3 real FPL calls for the developer's team.
+- The scheduled "a GW finished and isn't archived" trigger in Actions: P8 (`--history` itself is idempotent and cheap: ~1 min with backfill, seconds otherwise).
+
+**Measured:**
+- Archive: GW1-5 **backfilled**, GW6 **live** (from the 2026-10-08 `--predict` run); `history/` 287 KB, `data/published/` 1.6 MB. Backfill of 5 GWs: 57 s. All 50 backfilled fixtures had bookmaker odds for their own round (`avg`).
+- Season so far (product stat, not a claim): model pick actual / hindsight-best / average / highest — GW1 31 / 165 / 50 / 131, GW2 116 / 166 / 81 / 161, GW3 62 / 142 / 51 / 119, GW4 49 / 163 / 69 / 151, GW5 29 / 167 / 48 / 126. **Capture ratio 0.19, 0.70, 0.44, 0.30, 0.17** (mean 0.36). The model pick beat the average manager in 2 of 5 GWs (287 vs 299 points in total), consistent with P4's "no significant decision-layer gain".
+- Ratings: 667 players, FPLense source, median 65, range 50-99.
+- Latency (local, in-process `TestClient`, real published data): `/squads/optimize` p50 0.23 s / **p95 0.37 s** (n = 20); `/transfers/plan` (T = 0..5 + 12-step path) p50 2.89 s / **p95 3.10 s** (n = 10); `/compare` (3 slots) p95 0.12 s. Before the pruning + dict-lookup fix the plan took ~40 s.
+- `/api/players` 670 KB → 47 KB gzipped. Pruning shrinks the GW6 pool 485 → 230 players with identical optima.
+- Real FPL smoke test (developer's team): `/api/entry` 0.56 s cold; GW5 scored 56 = FPL's official 56 incl. the same auto-sub.
+- Checks: `ruff check` / `ruff format --check` clean; `pytest -q` **322 passed**; `pytest -q -m data` 28 passed.
+
+**Follow-ups / notes:**
+- P7: generate TS types from `web/openapi.json`; port `team_code` against the shared vectors (check the CRC-8 value 0xF4 first); every squad response already carries its `code`.
+- A rerun of `--backtest` now gives B 1,842 instead of 1,826 (tie-breaking, DECISIONS.md P6); committed P4 artifacts kept.
+- P8: the refresh workflow should run `--history` daily (cheap) next to the deadline-gated `--predict`; the Render image must include `data/published/` and `model_meta.json`.
+- The GW1 backfill has no form features (season start), so its pick is close to price-driven; that's honest as-of behaviour, not a bug.

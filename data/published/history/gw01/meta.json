@@ -1,0 +1,19 @@
+{
+  "gw": 1,
+  "made_at": "2026-10-09T04:02:11+00:00",
+  "model_sha256": "f0850292d2dba630082eb84d7986c2cf2567368ce9be00d0befda1339e52c81a",
+  "model_train_max_season": "2025-26",
+  "source": "backfill",
+  "horizon_gws": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "data_before_gw": 1,
+  "odds_sources": {
+    "avg": 10
+  },
+  "caveat": "rebuilt after the fact from data before this GW; availability unknown (100%)"
+}

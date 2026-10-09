@@ -11,7 +11,11 @@ from fPLense.optimize.squad_ilp import check_squad, pick_squad
 from fPLense.optimize.transfers import (
     best_transfers,
     options_table,
+    pair_moves,
+    path_to_target,
+    plan,
     plan_transfers,
+    recommend_text,
     recommended,
 )
 
@@ -117,3 +121,73 @@ def test_options_table(setup):
     assert list(table["transfers"]) == [0, 1, 2, 3]
     assert list(table["hit"]) == [0, 0, -4, -8]
     assert table.loc[0, "net_gain"] == 0
+
+
+# --- P6: T up to 5 and the path to a target squad ---------------------------------------------
+
+
+def test_plan_goes_up_to_five(setup):
+    pool, s0, bank = setup
+    out = plan(pool, s0, bank, free_transfers=2, max_transfers=5)
+    assert [o.n_transfers for o in out["options"]] == [0, 1, 2, 3, 4, 5]
+    for o in out["options"]:
+        assert check_squad(pool, o.result, budget=10_000) == []
+        assert o.hits == 4 * max(0, o.n_transfers - 2)
+    assert out["recommended"] in out["options"]
+    assert out["path"] is None
+
+
+@pytest.fixture(scope="module")
+def target_setup(setup):
+    pool, s0, bank = setup
+    return pool, s0, bank, pick_squad(pool, budget=1000).squad
+
+
+def test_target_mode_only_buys_from_target_and_sells_the_rest(target_setup):
+    pool, s0, bank, target = target_setup
+    steps = path_to_target(pool, s0, target, bank, free_transfers=1)
+    assert steps, "the stale squad should have moves towards the best squad"
+    buys, sells = set(target) - set(s0), set(s0) - set(target)
+    for s in steps:
+        assert set(s.option.ins) <= buys
+        assert set(s.option.outs) <= sells
+        assert len(s.option.ins) == len(s.option.outs) == s.n_moves
+        assert pool.at[s.new_out, "pos"] == pool.at[s.new_in, "pos"]
+        assert check_squad(pool, s.option.result, budget=10_000) == []
+    for a, b in zip(steps, steps[1:], strict=False):  # nested: earlier moves are kept
+        assert set(a.option.ins) <= set(b.option.ins)
+        assert b.n_moves == a.n_moves + 1
+
+
+def test_target_path_gain_never_falls_with_more_free_moves(target_setup):
+    pool, s0, bank, target = target_setup
+    by_free = {f: path_to_target(pool, s0, target, bank, free_transfers=f) for f in (0, 1, 3, 5)}
+    for t in range(len(by_free[0])):
+        gains = [by_free[f][t].net_gain for f in (0, 1, 3, 5)]
+        assert gains == sorted(gains)
+        for f in (0, 1, 3, 5):
+            assert by_free[f][t].hits == 4 * max(0, by_free[f][t].n_moves - f)
+
+
+def test_recommend_text(target_setup):
+    pool, s0, bank, target = target_setup
+    steps = path_to_target(pool, s0, target, bank, free_transfers=1)
+    n, text = recommend_text(steps, 1)
+    best = max(steps, key=lambda s: s.net_gain)
+    assert n == (best.n_moves if best.net_gain > 0 else 0)
+    assert text.startswith("Make" if n else "Hold")
+    assert recommend_text([], 1)[0] == 0
+
+
+def test_plan_with_target_returns_a_path(target_setup):
+    pool, s0, bank, target = target_setup
+    out = plan(pool, s0, bank, free_transfers=1, max_transfers=2, target=target)
+    assert out["path"]["steps"] and out["path"]["advice"]
+
+
+def test_pair_moves_like_for_like(setup):
+    pool, s0, bank = setup
+    opt = best_transfers(pool, s0, bank, free_transfers=3, n_transfers=3)
+    pairs = pair_moves(pool, opt.outs, opt.ins)
+    assert len(pairs) == 3
+    assert all(pool.at[o, "pos"] == pool.at[i, "pos"] for o, i in pairs)

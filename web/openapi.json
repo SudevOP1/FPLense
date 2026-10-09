@@ -1,0 +1,3470 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FPLense API",
+    "summary": "FPL points forecasts, squad optimizer, season replay and team tools.",
+    "description": "Prices are integer tenths of £1m (55 = £5.5m). Expected points come from a LightGBM model validated walk-forward; hindsight-best squads are the best legal £100m squads on actual points (not FPL's Dream Team). Not affiliated with the Premier League.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Health",
+        "description": "Liveness plus what's published (cheap: the frontend polls it to detect cold starts).",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/meta": {
+      "get": {
+        "tags": [
+          "meta"
+        ],
+        "summary": "Meta",
+        "description": "Season, gameweeks (next, finished, archived live vs backfilled), deadline, headline.",
+        "operationId": "meta_api_meta_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Meta"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model": {
+      "get": {
+        "tags": [
+          "meta",
+          "meta"
+        ],
+        "summary": "Model Card",
+        "description": "Metrics with CIs, MAE by GW, SHAP importance and the backtest (Model Card page).",
+        "operationId": "model_card_api_model_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Model Card Api Model Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/players": {
+      "get": {
+        "tags": [
+          "players"
+        ],
+        "summary": "Players",
+        "description": "Every player for a GW: price, availability, rating, photo URL, expected points per GW,\n``P_h``, actual points once the GW is finished, and the next 5 GWs' fixtures with FDR.",
+        "operationId": "players_api_players_get",
+        "parameters": [
+          {
+            "name": "gw",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 38,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "default: the next gameweek",
+              "title": "Gw"
+            },
+            "description": "default: the next gameweek"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayersOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/players/{player_id}": {
+      "get": {
+        "tags": [
+          "players"
+        ],
+        "summary": "Player",
+        "description": "One player: expected vs actual points each GW this season, the next-GW SHAP waterfall\n(\"why the model thinks this\"), fixtures and ownership.",
+        "operationId": "player_api_players__player_id__get",
+        "parameters": [
+          {
+            "name": "player_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "title": "Player Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/squads/best": {
+      "get": {
+        "tags": [
+          "squads"
+        ],
+        "summary": "Best",
+        "description": "The model's pick: the frozen archive for a past GW, the live best team for the next.",
+        "operationId": "best_api_squads_best_get",
+        "parameters": [
+          {
+            "name": "gw",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 38,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "default: the next gameweek",
+              "title": "Gw"
+            },
+            "description": "default: the next gameweek"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Squad"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/squads/optimize": {
+      "post": {
+        "tags": [
+          "squads"
+        ],
+        "summary": "Optimize",
+        "description": "Re-solve the squad ILP for the next GW with your budget, horizon, bench weight, locks\nand bans. An impossible lock set answers 422 naming the broken rule.",
+        "operationId": "optimize_api_squads_optimize_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptimizeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Squad"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/squads/evaluate": {
+      "post": {
+        "tags": [
+          "squads"
+        ],
+        "summary": "Evaluate",
+        "description": "Expected (and, for a finished GW, actual) points, cost and a plain-English rule report\nfor any 0-15 players; a full squad without an XI gets the lineup helper's.",
+        "operationId": "evaluate_api_squads_evaluate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluateOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/summary": {
+      "get": {
+        "tags": [
+          "history"
+        ],
+        "summary": "Summary",
+        "description": "Per finished GW: model pick expected and actual points, hindsight-best, average and\nhighest manager scores, and the capture ratio (model pick / hindsight-best; a product\nstat, not a claim).",
+        "operationId": "summary_api_history_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistorySummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/{gw}": {
+      "get": {
+        "tags": [
+          "history"
+        ],
+        "summary": "History Gw",
+        "description": "One GW: the model's pick (frozen before the deadline) next to the hindsight-best squad,\nboth with actual points; ``source`` says whether the pick was live or backfilled.",
+        "operationId": "history_gw_api_history__gw__get",
+        "parameters": [
+          {
+            "name": "gw",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 38,
+              "minimum": 1,
+              "title": "Gw"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryGw"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/entry/{team_id}": {
+      "get": {
+        "tags": [
+          "entry"
+        ],
+        "summary": "Entry",
+        "description": "Team and manager name, rank, value and bank, and every GW's points, rank, transfers,\nhits and chip, next to the model pick, the hindsight-best and the average score.",
+        "operationId": "entry_api_entry__team_id__get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000000,
+              "exclusiveMinimum": 0,
+              "description": "the number in your FPL team URL",
+              "title": "Team Id"
+            },
+            "description": "the number in your FPL team URL"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/entry/{team_id}/gw/{gw}": {
+      "get": {
+        "tags": [
+          "entry"
+        ],
+        "summary": "Entry Gw",
+        "description": "That GW's picks resolved to players, with expected points (from the frozen archive) and\nactual points, plus the lineup helper's best XI and captain from the same 15.",
+        "operationId": "entry_gw_api_entry__team_id__gw__gw__get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000000,
+              "exclusiveMinimum": 0,
+              "description": "the number in your FPL team URL",
+              "title": "Team Id"
+            },
+            "description": "the number in your FPL team URL"
+          },
+          {
+            "name": "gw",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 38,
+              "minimum": 1,
+              "title": "Gw"
+            }
+          },
+          {
+            "name": "predict_gw",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 38,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "GW the lineup helper optimises (default: this GW if predictions exist for it, else the next GW)",
+              "title": "Predict Gw"
+            },
+            "description": "GW the lineup helper optimises (default: this GW if predictions exist for it, else the next GW)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryGwOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/transfers/plan": {
+      "post": {
+        "tags": [
+          "transfers"
+        ],
+        "summary": "Plan",
+        "description": "Best moves for T = 0..5 transfers (net of -4 hits beyond your free ones) and a\nstep-by-step path from your squad to the model's best squad.",
+        "operationId": "plan_api_transfers_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/compare": {
+      "post": {
+        "tags": [
+          "compare"
+        ],
+        "summary": "Compare",
+        "description": "Each slot: squad, XI/bench/captain, expected and actual points, cost, points by\nposition, captain and bench points. Across slots: shared players, differentials and\nexpected points per GW over the horizon.",
+        "operationId": "compare_api_compare_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompareIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompareOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/codes/decode": {
+      "post": {
+        "tags": [
+          "codes"
+        ],
+        "summary": "Decode",
+        "description": "A team code (or a share URL containing one) -> the squad with expected points for the\nnext GW. Bad codes answer 422 with a specific message (typo, other season, illegal team).",
+        "operationId": "decode_api_codes_decode_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecodeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecodeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/codes/encode": {
+      "post": {
+        "tags": [
+          "codes"
+        ],
+        "summary": "Encode",
+        "description": "11 starters + 4 bench (in order) + captain and vice -> a shareable code.",
+        "operationId": "encode_api_codes_encode_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EncodeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncodeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AutoSub": {
+        "properties": {
+          "out": {
+            "type": "integer",
+            "title": "Out"
+          },
+          "into": {
+            "type": "integer",
+            "title": "Into"
+          }
+        },
+        "type": "object",
+        "required": [
+          "out",
+          "into"
+        ],
+        "title": "AutoSub"
+      },
+      "Chip": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "gw"
+        ],
+        "title": "Chip"
+      },
+      "CompareIn": {
+        "properties": {
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/Slot"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 2,
+            "title": "Slots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slots"
+        ],
+        "title": "CompareIn"
+      },
+      "CompareOut": {
+        "properties": {
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/SlotOut"
+            },
+            "type": "array",
+            "title": "Slots"
+          },
+          "shared": {
+            "items": {
+              "$ref": "#/components/schemas/SharedPlayer"
+            },
+            "type": "array",
+            "title": "Shared"
+          },
+          "horizon": {
+            "items": {
+              "$ref": "#/components/schemas/HorizonRow"
+            },
+            "type": "array",
+            "title": "Horizon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slots",
+          "shared",
+          "horizon"
+        ],
+        "title": "CompareOut"
+      },
+      "DecodeIn": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "DecodeIn"
+      },
+      "DecodeOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "season": {
+            "type": "string",
+            "title": "Season"
+          },
+          "squad": {
+            "$ref": "#/components/schemas/Squad"
+          },
+          "over_budget": {
+            "type": "boolean",
+            "title": "Over Budget"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "season",
+          "squad",
+          "over_budget"
+        ],
+        "title": "DecodeOut"
+      },
+      "EncodeIn": {
+        "properties": {
+          "starters": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 11,
+            "minItems": 11,
+            "title": "Starters"
+          },
+          "bench": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Bench"
+          },
+          "captain": {
+            "type": "integer",
+            "title": "Captain"
+          },
+          "vice": {
+            "type": "integer",
+            "title": "Vice"
+          }
+        },
+        "type": "object",
+        "required": [
+          "starters",
+          "bench",
+          "captain",
+          "vice"
+        ],
+        "title": "EncodeIn"
+      },
+      "EncodeOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "share_param": {
+            "type": "string",
+            "title": "Share Param"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "share_param"
+        ],
+        "title": "EncodeOut"
+      },
+      "Entry": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "team_name": {
+            "type": "string",
+            "title": "Team Name"
+          },
+          "manager_name": {
+            "type": "string",
+            "title": "Manager Name"
+          },
+          "overall_points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overall Points"
+          },
+          "overall_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overall Rank"
+          },
+          "current_event": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Event"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "bank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/EntryGw"
+            },
+            "type": "array",
+            "title": "History"
+          },
+          "chips": {
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "type": "array",
+            "title": "Chips"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "team_name",
+          "manager_name",
+          "overall_points",
+          "overall_rank",
+          "current_event",
+          "value",
+          "bank",
+          "history",
+          "chips"
+        ],
+        "title": "Entry"
+      },
+      "EntryGw": {
+        "properties": {
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          },
+          "total_points": {
+            "type": "integer",
+            "title": "Total Points"
+          },
+          "rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
+          "overall_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overall Rank"
+          },
+          "bank": {
+            "type": "integer",
+            "title": "Bank"
+          },
+          "value": {
+            "type": "integer",
+            "title": "Value"
+          },
+          "transfers": {
+            "type": "integer",
+            "title": "Transfers"
+          },
+          "transfers_cost": {
+            "type": "integer",
+            "title": "Transfers Cost"
+          },
+          "points_on_bench": {
+            "type": "integer",
+            "title": "Points On Bench"
+          },
+          "chip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chip"
+          },
+          "model_pick_points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Pick Points"
+          },
+          "hindsight_points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hindsight Points"
+          },
+          "average_entry_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Entry Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gw",
+          "points",
+          "total_points",
+          "rank",
+          "overall_rank",
+          "bank",
+          "value",
+          "transfers",
+          "transfers_cost",
+          "points_on_bench",
+          "chip",
+          "model_pick_points",
+          "hindsight_points",
+          "average_entry_score"
+        ],
+        "title": "EntryGw"
+      },
+      "EntryGwOut": {
+        "properties": {
+          "team_id": {
+            "type": "integer",
+            "title": "Team Id"
+          },
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          },
+          "predict_gw": {
+            "type": "integer",
+            "title": "Predict Gw"
+          },
+          "active_chip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Chip"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "bank": {
+            "type": "integer",
+            "title": "Bank"
+          },
+          "value": {
+            "type": "integer",
+            "title": "Value"
+          },
+          "squad": {
+            "$ref": "#/components/schemas/Squad"
+          },
+          "automatic_subs": {
+            "items": {
+              "$ref": "#/components/schemas/AutoSub"
+            },
+            "type": "array",
+            "title": "Automatic Subs"
+          },
+          "lineup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Squad"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "lineup helper: best XI + captain from these 15"
+          },
+          "lineup_changes": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Lineup Changes",
+            "description": "players the helper moves into the XI"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "gw",
+          "predict_gw",
+          "active_chip",
+          "points",
+          "bank",
+          "value",
+          "squad",
+          "automatic_subs",
+          "lineup",
+          "lineup_changes"
+        ],
+        "title": "EntryGwOut"
+      },
+      "EvaluateIn": {
+        "properties": {
+          "players": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 15,
+            "title": "Players"
+          },
+          "starters": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array",
+                "maxItems": 11
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starters"
+          },
+          "captain": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captain"
+          },
+          "vice": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vice"
+          },
+          "gw": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gw"
+          }
+        },
+        "type": "object",
+        "required": [
+          "players"
+        ],
+        "title": "EvaluateIn"
+      },
+      "EvaluateOut": {
+        "properties": {
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          },
+          "finished": {
+            "type": "boolean",
+            "title": "Finished"
+          },
+          "legal": {
+            "type": "boolean",
+            "title": "Legal"
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "type": "array",
+            "title": "Problems"
+          },
+          "cost": {
+            "type": "integer",
+            "title": "Cost"
+          },
+          "bank": {
+            "type": "integer",
+            "title": "Bank"
+          },
+          "starters": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Starters"
+          },
+          "bench": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Bench"
+          },
+          "captain": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captain"
+          },
+          "vice": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vice"
+          },
+          "expected_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Points"
+          },
+          "horizon_expected": {
+            "items": {
+              "$ref": "#/components/schemas/GwPoints"
+            },
+            "type": "array",
+            "title": "Horizon Expected"
+          },
+          "actual_points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Points"
+          },
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/SquadPlayer"
+            },
+            "type": "array",
+            "title": "Players"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gw",
+          "finished",
+          "legal",
+          "problems",
+          "cost",
+          "bank",
+          "starters",
+          "bench",
+          "captain",
+          "vice",
+          "expected_points",
+          "horizon_expected",
+          "actual_points",
+          "players"
+        ],
+        "title": "EvaluateOut"
+      },
+      "FixtureTick": {
+        "properties": {
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          },
+          "opponent": {
+            "type": "string",
+            "title": "Opponent",
+            "description": "opponent short name, e.g. ARS"
+          },
+          "home": {
+            "type": "boolean",
+            "title": "Home"
+          },
+          "fdr": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fdr"
+          },
+          "kickoff": {
+            "type": "string",
+            "title": "Kickoff"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gw",
+          "opponent",
+          "home",
+          "fdr",
+          "kickoff"
+        ],
+        "title": "FixtureTick"
+      },
+      "GwPoints": {
+        "properties": {
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          },
+          "points": {
+            "type": "number",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gw",
+          "points"
+        ],
+        "title": "GwPoints"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Headline": {
+        "properties": {
+          "gain_pct": {
+            "type": "number",
+            "title": "Gain Pct"
+          },
+          "ci": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Ci"
+          },
+          "mae": {
+            "type": "number",
+            "title": "Mae"
+          },
+          "b0_mae": {
+            "type": "number",
+            "title": "B0 Mae"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "season": {
+            "type": "string",
+            "title": "Season"
+          },
+          "spearman": {
+            "type": "number",
+            "title": "Spearman"
+          },
+          "b0_spearman": {
+            "type": "number",
+            "title": "B0 Spearman"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gain_pct",
+          "ci",
+          "mae",
+          "b0_mae",
+          "n",
+          "season",
+          "spearman",
+          "b0_spearman"
+        ],
+        "title": "Headline"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "no_data"
+            ],
+            "title": "Status"
+          },
+          "season": {
+            "type": "string",
+            "title": "Season"
+          },
+          "next_gw": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Gw"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "season",
+          "next_gw",
+          "published_at"
+        ],
+        "title": "Health"
+      },
+      "HistoryGw": {
+        "properties": {
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "made_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Made At"
+          },
+          "caveat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caveat"
+          },
+          "model_pick": {
+            "$ref": "#/components/schemas/Squad"
+          },
+          "hindsight": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Squad"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SummaryRow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "gw",
+          "source",
+          "made_at",
+          "caveat",
+          "model_pick",
+          "hindsight",
+          "summary"
+        ],
+        "title": "HistoryGw"
+      },
+      "HistorySummary": {
+        "properties": {
+          "season": {
+            "type": "string",
+            "title": "Season"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "gws": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryRow"
+            },
+            "type": "array",
+            "title": "Gws"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/SeasonEvent"
+            },
+            "type": "array",
+            "title": "Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "season",
+          "note",
+          "gws",
+          "events"
+        ],
+        "title": "HistorySummary"
+      },
+      "HorizonRow": {
+        "properties": {
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          },
+          "points": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gw",
+          "points"
+        ],
+        "title": "HorizonRow"
+      },
+      "Meta": {
+        "properties": {
+          "season": {
+            "type": "string",
+            "title": "Season"
+          },
+          "current_gw": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Gw",
+            "description": "last finished gameweek"
+          },
+          "next_gw": {
+            "type": "integer",
+            "title": "Next Gw"
+          },
+          "deadline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline",
+            "description": "next deadline, UTC ISO 8601"
+          },
+          "gws": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Gws",
+            "description": "gameweeks covered by the live predictions"
+          },
+          "finished_gws": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Finished Gws"
+          },
+          "archived_gws": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Archived Gws"
+          },
+          "backfilled_gws": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Backfilled Gws"
+          },
+          "live_gws": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Live Gws"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "data_through_gw": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Through Gw"
+          },
+          "horizon_max": {
+            "type": "integer",
+            "title": "Horizon Max"
+          },
+          "budget": {
+            "type": "integer",
+            "title": "Budget"
+          },
+          "headline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Headline"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rating_source": {
+            "type": "string",
+            "title": "Rating Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "season",
+          "current_gw",
+          "next_gw",
+          "deadline",
+          "gws",
+          "finished_gws",
+          "archived_gws",
+          "backfilled_gws",
+          "live_gws",
+          "generated_at",
+          "data_through_gw",
+          "horizon_max",
+          "budget",
+          "headline",
+          "rating_source"
+        ],
+        "title": "Meta"
+      },
+      "Move": {
+        "properties": {
+          "out": {
+            "$ref": "#/components/schemas/SquadPlayer"
+          },
+          "into": {
+            "$ref": "#/components/schemas/SquadPlayer"
+          },
+          "gain": {
+            "type": "number",
+            "title": "Gain",
+            "description": "P_h of the player in minus the player out"
+          }
+        },
+        "type": "object",
+        "required": [
+          "out",
+          "into",
+          "gain"
+        ],
+        "title": "Move"
+      },
+      "OptimizeIn": {
+        "properties": {
+          "budget": {
+            "type": "integer",
+            "maximum": 1500.0,
+            "minimum": 500.0,
+            "title": "Budget",
+            "description": "tenths of £1m",
+            "default": 1000
+          },
+          "horizon": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Horizon",
+            "default": 5
+          },
+          "bench_weight": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Bench Weight",
+            "default": 0.1
+          },
+          "locked": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 15,
+            "title": "Locked"
+          },
+          "banned": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Banned"
+          }
+        },
+        "type": "object",
+        "title": "OptimizeIn"
+      },
+      "PathOut": {
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/Squad"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/PathStepOut"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "make_now": {
+            "type": "integer",
+            "title": "Make Now"
+          },
+          "advice": {
+            "type": "string",
+            "title": "Advice"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target",
+          "steps",
+          "make_now",
+          "advice"
+        ],
+        "title": "PathOut"
+      },
+      "PathStepOut": {
+        "properties": {
+          "n_moves": {
+            "type": "integer",
+            "title": "N Moves"
+          },
+          "new_moves": {
+            "items": {
+              "$ref": "#/components/schemas/Move"
+            },
+            "type": "array",
+            "title": "New Moves"
+          },
+          "gain_before_hits": {
+            "type": "number",
+            "title": "Gain Before Hits"
+          },
+          "hits": {
+            "type": "integer",
+            "title": "Hits"
+          },
+          "net_gain": {
+            "type": "number",
+            "title": "Net Gain"
+          },
+          "bank_after": {
+            "type": "integer",
+            "title": "Bank After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "n_moves",
+          "new_moves",
+          "gain_before_hits",
+          "hits",
+          "net_gain",
+          "bank_after"
+        ],
+        "title": "PathStepOut"
+      },
+      "Player": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "code": {
+            "type": "integer",
+            "title": "Code"
+          },
+          "web_name": {
+            "type": "string",
+            "title": "Web Name"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "pos": {
+            "type": "string",
+            "enum": [
+              "GK",
+              "DEF",
+              "MID",
+              "FWD"
+            ],
+            "title": "Pos"
+          },
+          "club": {
+            "type": "string",
+            "title": "Club"
+          },
+          "club_short": {
+            "type": "string",
+            "title": "Club Short"
+          },
+          "price": {
+            "type": "integer",
+            "title": "Price"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "chance_of_playing_next_round": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chance Of Playing Next Round"
+          },
+          "news": {
+            "type": "string",
+            "title": "News"
+          },
+          "availability": {
+            "type": "number",
+            "title": "Availability"
+          },
+          "selected_by_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected By Percent"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "rating": {
+            "type": "integer",
+            "title": "Rating"
+          },
+          "rating_source": {
+            "type": "string",
+            "title": "Rating Source"
+          },
+          "expected": {
+            "items": {
+              "$ref": "#/components/schemas/GwPoints"
+            },
+            "type": "array",
+            "title": "Expected",
+            "description": "expected points per GW (live horizon)"
+          },
+          "p": {
+            "type": "number",
+            "title": "P",
+            "description": "expected points in the requested GW"
+          },
+          "P_h": {
+            "type": "number",
+            "title": "P H",
+            "description": "discounted expected points over the horizon"
+          },
+          "actual": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual",
+            "description": "actual points if the GW is finished"
+          },
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          },
+          "fixtures": {
+            "items": {
+              "$ref": "#/components/schemas/FixtureTick"
+            },
+            "type": "array",
+            "title": "Fixtures"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "web_name",
+          "name",
+          "pos",
+          "club",
+          "club_short",
+          "price",
+          "status",
+          "chance_of_playing_next_round",
+          "news",
+          "availability",
+          "selected_by_percent",
+          "photo_url",
+          "rating",
+          "rating_source",
+          "expected",
+          "p",
+          "P_h",
+          "fixtures"
+        ],
+        "title": "Player"
+      },
+      "PlayerDetail": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "code": {
+            "type": "integer",
+            "title": "Code"
+          },
+          "web_name": {
+            "type": "string",
+            "title": "Web Name"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "pos": {
+            "type": "string",
+            "enum": [
+              "GK",
+              "DEF",
+              "MID",
+              "FWD"
+            ],
+            "title": "Pos"
+          },
+          "club": {
+            "type": "string",
+            "title": "Club"
+          },
+          "club_short": {
+            "type": "string",
+            "title": "Club Short"
+          },
+          "price": {
+            "type": "integer",
+            "title": "Price"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "chance_of_playing_next_round": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chance Of Playing Next Round"
+          },
+          "news": {
+            "type": "string",
+            "title": "News"
+          },
+          "availability": {
+            "type": "number",
+            "title": "Availability"
+          },
+          "selected_by_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected By Percent"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "rating": {
+            "type": "integer",
+            "title": "Rating"
+          },
+          "rating_source": {
+            "type": "string",
+            "title": "Rating Source"
+          },
+          "expected": {
+            "items": {
+              "$ref": "#/components/schemas/GwPoints"
+            },
+            "type": "array",
+            "title": "Expected",
+            "description": "expected points per GW (live horizon)"
+          },
+          "p": {
+            "type": "number",
+            "title": "P",
+            "description": "expected points in the requested GW"
+          },
+          "P_h": {
+            "type": "number",
+            "title": "P H",
+            "description": "discounted expected points over the horizon"
+          },
+          "actual": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual",
+            "description": "actual points if the GW is finished"
+          },
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          },
+          "fixtures": {
+            "items": {
+              "$ref": "#/components/schemas/FixtureTick"
+            },
+            "type": "array",
+            "title": "Fixtures"
+          },
+          "season_points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season Points"
+          },
+          "season_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season Minutes"
+          },
+          "prev_season_pts_per90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Season Pts Per90"
+          },
+          "top_shap": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top Shap"
+          },
+          "shap_base_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shap Base Value"
+          },
+          "shap_prediction": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shap Prediction",
+            "description": "raw next-GW prediction before availability"
+          },
+          "shap": {
+            "items": {
+              "$ref": "#/components/schemas/ShapItem"
+            },
+            "type": "array",
+            "title": "Shap"
+          },
+          "season": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerGw"
+            },
+            "type": "array",
+            "title": "Season"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "web_name",
+          "name",
+          "pos",
+          "club",
+          "club_short",
+          "price",
+          "status",
+          "chance_of_playing_next_round",
+          "news",
+          "availability",
+          "selected_by_percent",
+          "photo_url",
+          "rating",
+          "rating_source",
+          "expected",
+          "p",
+          "P_h",
+          "fixtures",
+          "season_points",
+          "season_minutes",
+          "prev_season_pts_per90",
+          "top_shap",
+          "shap_base_value",
+          "shap_prediction",
+          "shap",
+          "season"
+        ],
+        "title": "PlayerDetail"
+      },
+      "PlayerGw": {
+        "properties": {
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "actual": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual"
+          },
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gw",
+          "expected",
+          "actual",
+          "minutes",
+          "source"
+        ],
+        "title": "PlayerGw"
+      },
+      "PlayersOut": {
+        "properties": {
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          },
+          "gws": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Gws"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "live",
+              "backfill",
+              "latest"
+            ],
+            "title": "Source"
+          },
+          "finished": {
+            "type": "boolean",
+            "title": "Finished"
+          },
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/Player"
+            },
+            "type": "array",
+            "title": "Players"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gw",
+          "gws",
+          "source",
+          "finished",
+          "players"
+        ],
+        "title": "PlayersOut"
+      },
+      "PositionPoints": {
+        "properties": {
+          "pos": {
+            "type": "string",
+            "enum": [
+              "GK",
+              "DEF",
+              "MID",
+              "FWD"
+            ],
+            "title": "Pos"
+          },
+          "expected": {
+            "type": "number",
+            "title": "Expected"
+          },
+          "actual": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pos",
+          "expected",
+          "actual"
+        ],
+        "title": "PositionPoints"
+      },
+      "Problem": {
+        "properties": {
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule",
+          "message"
+        ],
+        "title": "Problem"
+      },
+      "SeasonEvent": {
+        "properties": {
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          },
+          "deadline_time": {
+            "type": "string",
+            "title": "Deadline Time"
+          },
+          "finished": {
+            "type": "boolean",
+            "title": "Finished"
+          },
+          "average_entry_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Entry Score"
+          },
+          "highest_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Highest Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gw",
+          "deadline_time",
+          "finished",
+          "average_entry_score",
+          "highest_score"
+        ],
+        "title": "SeasonEvent"
+      },
+      "ShapItem": {
+        "properties": {
+          "feature": {
+            "type": "string",
+            "title": "Feature"
+          },
+          "shap": {
+            "type": "number",
+            "title": "Shap"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "feature",
+          "shap",
+          "value"
+        ],
+        "title": "ShapItem"
+      },
+      "SharedPlayer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "slots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Slots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slots"
+        ],
+        "title": "SharedPlayer"
+      },
+      "Slot": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "entry",
+              "model_pick",
+              "hindsight",
+              "code",
+              "squad"
+            ],
+            "title": "Kind"
+          },
+          "gw": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gw"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "entry: team id · code: team code · squad: 15 player ids"
+          },
+          "starters": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array",
+                "maxItems": 11
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starters"
+          },
+          "captain": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captain"
+          },
+          "vice": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vice"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "Slot"
+      },
+      "SlotOut": {
+        "properties": {
+          "letter": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C"
+            ],
+            "title": "Letter"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "entry",
+              "model_pick",
+              "hindsight",
+              "code",
+              "squad"
+            ],
+            "title": "Kind"
+          },
+          "squad": {
+            "$ref": "#/components/schemas/Squad"
+          },
+          "captain_expected": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captain Expected"
+          },
+          "captain_actual": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captain Actual"
+          },
+          "bench_expected": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bench Expected"
+          },
+          "bench_actual": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bench Actual"
+          },
+          "by_position": {
+            "items": {
+              "$ref": "#/components/schemas/PositionPoints"
+            },
+            "type": "array",
+            "title": "By Position"
+          },
+          "differentials": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Differentials"
+          }
+        },
+        "type": "object",
+        "required": [
+          "letter",
+          "kind",
+          "squad",
+          "captain_expected",
+          "captain_actual",
+          "bench_expected",
+          "bench_actual",
+          "by_position",
+          "differentials"
+        ],
+        "title": "SlotOut"
+      },
+      "Squad": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/SquadPlayer"
+            },
+            "type": "array",
+            "title": "Players"
+          },
+          "starters": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Starters"
+          },
+          "bench": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Bench"
+          },
+          "captain": {
+            "type": "integer",
+            "title": "Captain"
+          },
+          "vice": {
+            "type": "integer",
+            "title": "Vice"
+          },
+          "cost": {
+            "type": "integer",
+            "title": "Cost"
+          },
+          "bank": {
+            "type": "integer",
+            "title": "Bank"
+          },
+          "budget": {
+            "type": "integer",
+            "title": "Budget"
+          },
+          "expected_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Points",
+            "description": "XI + captain for the GW"
+          },
+          "horizon_expected": {
+            "items": {
+              "$ref": "#/components/schemas/GwPoints"
+            },
+            "type": "array",
+            "title": "Horizon Expected"
+          },
+          "actual_points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Points",
+            "description": "XI after auto-subs + captain, if finished"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "shareable team code"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "type": "array",
+            "title": "Problems",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "gw",
+          "label",
+          "players",
+          "starters",
+          "bench",
+          "captain",
+          "vice",
+          "cost",
+          "bank",
+          "budget",
+          "expected_points",
+          "horizon_expected",
+          "actual_points",
+          "code"
+        ],
+        "title": "Squad"
+      },
+      "SquadPlayer": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "web_name": {
+            "type": "string",
+            "title": "Web Name"
+          },
+          "pos": {
+            "type": "string",
+            "enum": [
+              "GK",
+              "DEF",
+              "MID",
+              "FWD"
+            ],
+            "title": "Pos"
+          },
+          "club": {
+            "type": "string",
+            "title": "Club"
+          },
+          "club_short": {
+            "type": "string",
+            "title": "Club Short"
+          },
+          "price": {
+            "type": "integer",
+            "title": "Price"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "P_h": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P H"
+          },
+          "actual": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual"
+          },
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          },
+          "starter": {
+            "type": "boolean",
+            "title": "Starter"
+          },
+          "bench_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bench Order"
+          },
+          "captain": {
+            "type": "boolean",
+            "title": "Captain"
+          },
+          "vice": {
+            "type": "boolean",
+            "title": "Vice"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "rating_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating Source"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "news": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "News"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "web_name",
+          "pos",
+          "club",
+          "club_short",
+          "price",
+          "expected",
+          "P_h",
+          "actual",
+          "minutes",
+          "starter",
+          "bench_order",
+          "captain",
+          "vice",
+          "photo_url",
+          "rating",
+          "rating_source",
+          "status",
+          "news"
+        ],
+        "title": "SquadPlayer"
+      },
+      "SummaryRow": {
+        "properties": {
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "made_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Made At"
+          },
+          "model_expected": {
+            "type": "number",
+            "title": "Model Expected"
+          },
+          "model_actual": {
+            "type": "integer",
+            "title": "Model Actual"
+          },
+          "model_cost": {
+            "type": "integer",
+            "title": "Model Cost"
+          },
+          "hindsight_points": {
+            "type": "integer",
+            "title": "Hindsight Points"
+          },
+          "hindsight_cost": {
+            "type": "integer",
+            "title": "Hindsight Cost"
+          },
+          "shared_players": {
+            "type": "integer",
+            "title": "Shared Players"
+          },
+          "average_entry_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Entry Score"
+          },
+          "highest_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Highest Score"
+          },
+          "capture_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capture Ratio"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gw",
+          "source",
+          "made_at",
+          "model_expected",
+          "model_actual",
+          "model_cost",
+          "hindsight_points",
+          "hindsight_cost",
+          "shared_players",
+          "average_entry_score",
+          "highest_score",
+          "capture_ratio"
+        ],
+        "title": "SummaryRow"
+      },
+      "TransferIn": {
+        "properties": {
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          },
+          "squad": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array",
+                "maxItems": 15,
+                "minItems": 15
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Squad"
+          },
+          "bank": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank",
+            "description": "tenths; prefilled from FPL"
+          },
+          "free_transfers": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Free Transfers",
+            "default": 1
+          },
+          "max_transfers": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Max Transfers",
+            "default": 5
+          },
+          "horizon": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Horizon",
+            "default": 5
+          },
+          "target": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array",
+                "maxItems": 15,
+                "minItems": 15
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target",
+            "description": "target squad (default: best team)"
+          },
+          "path": {
+            "type": "boolean",
+            "title": "Path",
+            "description": "also plan the path to the target squad",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "TransferIn"
+      },
+      "TransferOptionOut": {
+        "properties": {
+          "n_transfers": {
+            "type": "integer",
+            "title": "N Transfers"
+          },
+          "moves": {
+            "items": {
+              "$ref": "#/components/schemas/Move"
+            },
+            "type": "array",
+            "title": "Moves"
+          },
+          "hits": {
+            "type": "integer",
+            "title": "Hits"
+          },
+          "expected_points": {
+            "type": "number",
+            "title": "Expected Points"
+          },
+          "net_gain": {
+            "type": "number",
+            "title": "Net Gain"
+          },
+          "bank_after": {
+            "type": "integer",
+            "title": "Bank After"
+          },
+          "recommended": {
+            "type": "boolean",
+            "title": "Recommended"
+          }
+        },
+        "type": "object",
+        "required": [
+          "n_transfers",
+          "moves",
+          "hits",
+          "expected_points",
+          "net_gain",
+          "bank_after",
+          "recommended"
+        ],
+        "title": "TransferOptionOut"
+      },
+      "TransferOut": {
+        "properties": {
+          "gw": {
+            "type": "integer",
+            "title": "Gw"
+          },
+          "current": {
+            "$ref": "#/components/schemas/Squad"
+          },
+          "bank": {
+            "type": "integer",
+            "title": "Bank"
+          },
+          "free_transfers": {
+            "type": "integer",
+            "title": "Free Transfers"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/TransferOptionOut"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "recommended": {
+            "type": "integer",
+            "title": "Recommended"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PathOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "caveat": {
+            "type": "string",
+            "title": "Caveat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gw",
+          "current",
+          "bank",
+          "free_transfers",
+          "options",
+          "recommended",
+          "path",
+          "caveat"
+        ],
+        "title": "TransferOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

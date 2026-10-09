@@ -305,3 +305,23 @@ def test_fetch_picks_url():
     session = FakeSession([FakeResponse(200, load("picks_sample.json"))])
     fetch_api.fetch_picks(123, 5, session, sleep=no_sleep)
     assert session.urls[0] == f"{config.FPL_API_BASE_URL}/entry/123/event/5/picks/"
+
+
+# --- P6: entry/{id}/ and entry/{id}/history/ samples ------------------------------------------
+
+
+def test_entry_samples_pass_the_schema_checks():
+    entry = json.loads((config.TESTS_FIXTURES_DIR / "entry_sample.json").read_text("utf-8"))
+    hist = json.loads((config.TESTS_FIXTURES_DIR / "entry_history_sample.json").read_text("utf-8"))
+    fetch_api.check_entry(entry)
+    fetch_api.check_entry_history(hist)
+    assert hist["current"][0]["event"] == 1
+
+
+def test_entry_schema_change_is_caught():
+    entry = json.loads((config.TESTS_FIXTURES_DIR / "entry_sample.json").read_text("utf-8"))
+    entry.pop("summary_overall_rank")
+    with pytest.raises(fetch_api.SchemaError, match="summary_overall_rank"):
+        fetch_api.check_entry(entry)
+    with pytest.raises(fetch_api.SchemaError, match="chips"):
+        fetch_api.check_entry_history({"current": []})

@@ -127,4 +127,9 @@ def train_final(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     model.booster_.save_model(str(out_path))
     log.info("saved %s (%d trees, %d rows)", out_path, model.booster_.num_trees(), len(df))
+    if out_path == config.MODEL_PATH:
+        from fPLense.models.history import write_model_meta
+
+        # the archive records which seasons the model saw (backfill refuses if it saw this one)
+        write_model_meta(str(df["season"].max()), out_path, trees=model.booster_.num_trees())
     return model

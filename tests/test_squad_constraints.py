@@ -138,3 +138,142 @@ def test_best_xi_is_optimal_for_formation():
         check_squad(pool, squad_ilp.result_from_selection(pool, res.squad, starters, captain)) == []
     )
     assert captain in starters
+
+
+# --- P6: locks, bans, the lineup helper, the rule report, pruning -----------------------------
+
+
+def test_locks_and_bans_respected():
+    pool = random_pool(seed=11)
+    free = pick_squad(pool)
+    banned = set(free.squad[:4])
+    outsiders = [i for i in pool.index if i not in free.squad and pool.at[i, "price"] <= 55]
+    locked = outsiders[:2]
+    res = pick_squad(pool, locked=locked, banned=banned)
+    assert set(locked) <= set(res.squad)
+    assert not banned & set(res.squad)
+    assert check_squad(pool, res) == []
+    assert res.objective <= free.objective + 1e-9
+
+
+def test_locked_player_skips_availability_filter():
+    pool = random_pool(seed=12).assign(status="a")
+    star = pool["P_h"].idxmax()
+    pool.loc[star, "status"] = "u"
+    assert star not in pick_squad(pool).squad
+    assert star in pick_squad(pool, locked=[star]).squad
+
+
+@pytest.mark.parametrize(
+    ("make_locks", "causes"),
+    [
+        (lambda p: list(p.index[p["pos"] == "GK"][:3]), {"quota"}),
+        (lambda p: list(p.index[p["club"] == p["club"].iloc[0]][:4]), {"club limit"}),
+        (lambda p: list(p.sort_values("price").index[-15:]), {"budget", "quota"}),
+    ],
+)
+def test_infeasible_locks_name_the_cause(make_locks, causes):
+    pool = random_pool(n=300, seed=13)
+    with pytest.raises(InfeasibleSquadError) as err:
+        pick_squad(pool, locked=make_locks(pool))
+    assert err.value.cause in causes
+    assert str(err.value)
+
+
+def test_budget_lock_message():
+    pool = random_pool(n=300, seed=14)
+    dear = list(pool[pool["pos"] == "FWD"].sort_values("price").index[-3:])
+    dear += list(pool[pool["pos"] == "MID"].sort_values("price").index[-5:])
+    with pytest.raises(InfeasibleSquadError, match="budget") as err:
+        pick_squad(pool, locked=dear, budget=900)
+    assert err.value.cause == "budget"
+
+
+def test_lock_and_ban_conflict():
+    pool = random_pool(seed=15)
+    with pytest.raises(InfeasibleSquadError) as err:
+        pick_squad(pool, locked=[pool.index[0]], banned=[pool.index[0]])
+    assert err.value.cause == "conflict"
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_best_lineup_is_legal_and_optimal_for_a_fixed_squad(seed):
+    pool = random_pool(seed=seed)
+    squad = pick_squad(pool, budget=900).squad
+    res = squad_ilp.best_lineup(pool, squad)
+    assert sorted(res.squad) == sorted(squad)
+    assert check_squad(pool, res, budget=10_000) == []
+    # the ILP objective is at least that of the formation-rule XI with its best captain
+    xi, cap = squad_ilp.best_xi(pool, squad)
+    rule = squad_ilp.squad_objective(pool, squad, xi, cap)
+    assert res.objective >= rule - 1e-9
+
+
+def test_best_lineup_rejects_incomplete_squads():
+    pool = random_pool(seed=3)
+    with pytest.raises(ValueError, match="2-5-5-3"):
+        squad_ilp.best_lineup(pool, pick_squad(pool).squad[:14])
+
+
+def test_rule_problems_on_partial_and_broken_squads():
+    pool = random_pool(n=300, seed=4)
+    defs = list(pool.index[pool["pos"] == "DEF"][:6])
+    probs = squad_ilp.rule_problems(pool, defs)
+    assert {"size", "quota"} <= {p["rule"] for p in probs}
+    assert any("6 DEF" in p["message"] for p in probs)
+    club = pool["club"].iloc[0]
+    four = list(pool.index[pool["club"] == club][:4])
+    assert any(p["rule"] == "club" for p in squad_ilp.rule_problems(pool, four))
+    assert any(p["rule"] == "duplicate" for p in squad_ilp.rule_problems(pool, [defs[0]] * 2))
+    assert any(p["rule"] == "unknown" for p in squad_ilp.rule_problems(pool, [999_999]))
+    legal = pick_squad(pool)
+    ok = squad_ilp.rule_problems(pool, legal.squad, legal.starters, legal.captain, legal.vice)
+    assert ok == []
+    over = squad_ilp.rule_problems(pool, legal.squad, budget=legal.cost - 1)
+    assert [p["rule"] for p in over] == ["budget"]
+    assert squad_ilp.rule_problems(pool, legal.squad, budget=1, enforce_budget=False) == []
+    bad_xi = squad_ilp.rule_problems(pool, legal.squad, legal.bench + legal.starters[:7])
+    assert any(p["rule"] == "xi" for p in bad_xi)
+
+
+def test_evaluate_squad_expected_and_actual():
+    pool = random_pool(seed=5)
+    pool["p_a"] = pool["p1"]
+    pool["p_b"] = pool["p1"] * 2
+    res = pick_squad(pool)
+    actual = pd.DataFrame({"points": 2, "minutes": 90}, index=pool.index)
+    out = squad_ilp.evaluate_squad(
+        pool, res.squad, res.starters, res.captain, res.vice, {6: "p_a", 7: "p_b"}, actual
+    )
+    xi = pool.loc[res.starters, "p1"].sum() + pool.at[res.captain, "p1"]
+    assert out["expected"][6] == pytest.approx(xi)
+    assert out["expected"][7] == pytest.approx(2 * xi)
+    assert out["actual"]["points"] == 24  # 11 x 2 + the captain's 2 again
+    assert out["legal"] and out["cost"] == res.cost
+    auto = squad_ilp.evaluate_squad(pool, res.squad, gw_cols={6: "p_a"})
+    assert len(auto["starters"]) == 11 and auto["captain"] in auto["starters"]
+    partial = squad_ilp.evaluate_squad(pool, res.squad[:5], gw_cols={6: "p_a"})
+    assert not partial["legal"] and partial["starters"] == []
+
+
+def test_pruning_never_changes_the_optimum():
+    import unittest.mock as mock
+
+    for seed in range(4):
+        pool = random_pool(n=400, seed=seed)
+        assert len(squad_ilp.prune_dominated(squad_ilp.validate_pool(pool))) < len(pool)
+        pruned = pick_squad(pool)
+        with mock.patch.object(squad_ilp, "prune_dominated", lambda d, keep=(): d):
+            raw = pick_squad(pool)
+        assert pruned.objective == pytest.approx(raw.objective)
+
+
+def test_pruning_keeps_protected_players():
+    pool = squad_ilp.validate_pool(random_pool(n=400, seed=1))
+    worst = pool["P_h"].idxmin()  # made the priciest of his position too: dominated by many
+    pool.loc[worst, ["price", "p1"]] = [
+        pool.loc[pool["pos"] == pool.at[worst, "pos"], "price"].max(),
+        0,
+    ]
+    assert worst not in squad_ilp.prune_dominated(pool).index
+    assert worst in squad_ilp.prune_dominated(pool, keep=[worst]).index

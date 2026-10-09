@@ -12,6 +12,8 @@
     python -m fPLense.pipeline --backtest                 # optimizer backtest 2025-26 GW5-38
     python -m fPLense.pipeline --refresh --predict --horizon 5          # live path (gated)
     python -m fPLense.pipeline --refresh --predict --horizon 5 --force  # run regardless
+    python -m fPLense.pipeline --history                  # season archive, actuals, hindsight
+    python -m fPLense.pipeline --ratings                  # card ratings -> published/ratings.json
 
 The live path (--refresh / --predict) exits early with code 0 unless the next FPL deadline is
 less than 48 h away and predictions for that gameweek don't exist yet; --force overrides.
@@ -90,6 +92,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="live: next-N-GW predictions, SHAP and squad -> data/published/ (gated)",
     )
     parser.add_argument(
+        "--history",
+        action="store_true",
+        help="archive every finished GW (backfill as-of where needed), actuals, hindsight-best "
+        "squads and the season summary -> data/published/history/",
+    )
+    parser.add_argument(
+        "--force-history",
+        action="store_true",
+        help="--history: rebuild existing backfilled GWs too (live archives are never replaced)",
+    )
+    parser.add_argument(
+        "--ratings",
+        action="store_true",
+        help="FPLense card ratings for the latest predictions -> data/published/ratings.json",
+    )
+    parser.add_argument(
         "--horizon",
         type=int,
         default=config.HORIZON,
@@ -122,6 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     actions = (args.refresh_history, args.refresh_odds, args.refresh_elo, args.build)
     live = args.refresh or args.predict
     others = args.evaluate or args.train or args.explain or args.backtest
+    others = others or args.history or args.ratings
     if not (any(actions) or others or live):
         parser.print_help()
         return 0
@@ -175,8 +194,57 @@ def main(argv: list[str] | None = None) -> int:
     if args.backtest:
         run_backtest(args.horizon)
 
-    if live:
-        return run_live(args)
+    code = run_live(args) if live else 0
+
+    if args.history:
+        code = run_history(args.force_history) or code
+    if args.ratings:
+        code = run_ratings() or code
+    return code
+
+
+def run_history(force: bool) -> int:
+    from fPLense.models.history import BackfillRefusedError
+    from fPLense.models.history import run_history as history
+
+    try:
+        rep = history(force=force)
+    except (BackfillRefusedError, FileNotFoundError) as exc:
+        print(f"error: {exc}")
+        return 1
+    print(
+        f"history: archived GWs {rep['archived']} (new live {rep['live_archived']}, "
+        f"backfilled {rep['backfilled']}), hindsight squads written for {rep['hindsight']}"
+    )
+    for r in rep["summary"]:
+        cap = f"{r['capture_ratio']:.2f}" if r["capture_ratio"] is not None else "n/a"
+        print(
+            f"  GW{r['gw']:>2} [{r['source']:>8}]: model pick {r['model_actual']:>3} "
+            f"(expected {r['model_expected']:.1f}), hindsight-best {r['hindsight_points']:>3}, "
+            f"average {r['average_entry_score']}, highest {r['highest_score']}, capture {cap}"
+        )
+    print(f"-> {config.HISTORY_DIR} (runtime {rep['runtime_s']}s)")
+    return 0
+
+
+def run_ratings() -> int:
+    import json
+
+    import pandas as pd
+
+    from fPLense.etl.ratings import publish_ratings
+
+    if not config.LATEST_PATH.exists():
+        print("error: no published predictions yet; run --predict first")
+        return 1
+    latest = json.loads(config.LATEST_PATH.read_text(encoding="utf-8"))
+    table = pd.read_parquet(config.PUBLISHED_DIR / latest["files"]["predictions"])
+    doc = publish_ratings(table, latest["gw"])
+    r = pd.Series([v["rating"] for v in doc["players"].values()])
+    print(
+        f"ratings: {len(r)} players, source {doc['source']} (EA FC not used), "
+        f"median {r.median():.0f}, range {r.min()}-{r.max()} -> {config.RATINGS_PATH}"
+    )
     return 0
 
 

@@ -25,6 +25,10 @@ extend-exclude = ["notebooks", "*.md"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares dependencies and parameters as argument defaults by design
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [

@@ -25,7 +25,15 @@ REQUIRED_COLUMNS = ["pos", "club", "price", "p1", "P_h"]
 
 
 class InfeasibleSquadError(RuntimeError):
-    """The solver found no legal squad (budget too small, too few players per position, ...)."""
+    """The solver found no legal squad (budget too small, too few players per position, ...).
+
+    ``cause`` names the rule that broke when it is known: ``"budget"``, ``"quota"``,
+    ``"club limit"``, ``"conflict"`` (a player both locked and banned) or ``"infeasible"``.
+    """
+
+    def __init__(self, message: str, cause: str = "infeasible"):
+        super().__init__(message)
+        self.cause = cause
 
 
 @dataclass
@@ -62,6 +70,40 @@ def eligible(df: pd.DataFrame) -> pd.DataFrame:
     return df[keep]
 
 
+def prune_dominated(df: pd.DataFrame, keep: Iterable = ()) -> pd.DataFrame:
+    """Drop players no optimal squad needs, so the ILP solves in a fraction of the time.
+
+    Player ``i`` is dominated by ``j`` (same position, not in ``keep``) when ``j`` costs no more
+    and has ``p1`` and ``P_h`` at least as high (one of them strictly or a lower id on ties).
+    If ``i``'s dominators span at least ``quota + MAX_CLUBS_FULL`` distinct clubs, any squad with
+    ``i`` can swap him for a dominator that is not already picked and whose club isn't full
+    (at most 15 / 3 = 5 clubs are full, at most ``quota - 1`` dominators are picked), at no extra
+    cost and with an objective at least as high. So dropping ``i`` never changes the optimum.
+    ``keep`` (locked or currently owned players) is never dropped nor used as a dominator.
+    """
+    keep = set(keep)
+    max_full = sum(config.SQUAD_QUOTAS.values()) // config.MAX_PER_CLUB
+    drop = []
+    for pos, g in df.groupby("pos"):
+        cand = g[~g.index.isin(keep)]
+        if len(cand) == 0:
+            continue
+        need = config.SQUAD_QUOTAS.get(pos, 0) + max_full
+        price = cand["price"].to_numpy(float)
+        p1 = cand["p1"].fillna(0).to_numpy(float)
+        ph = cand["P_h"].fillna(0).to_numpy(float)
+        ids = cand.index.to_numpy()
+        club_codes, _ = pd.factorize(cand["club"].astype(str))
+        for k in range(len(cand)):
+            better = (price <= price[k]) & (p1 >= p1[k]) & (ph >= ph[k])
+            strict = (price < price[k]) | (p1 > p1[k]) | (ph > ph[k]) | (ids < ids[k])
+            dom = better & strict
+            dom[k] = False
+            if dom.sum() >= need and len(np.unique(club_codes[dom])) >= need:
+                drop.append(ids[k])
+    return df.drop(index=drop)
+
+
 def validate_pool(df: pd.DataFrame) -> pd.DataFrame:
     """Check the columns and that prices are integer tenths; returns a clean copy."""
     missing = [c for c in REQUIRED_COLUMNS if c not in df]
@@ -75,7 +117,14 @@ def validate_pool(df: pd.DataFrame) -> pd.DataFrame:
     unknown = set(df["pos"]) - set(config.SQUAD_QUOTAS)
     if unknown:
         raise ValueError(f"unknown positions {sorted(unknown)}")
-    out = df.copy()
+    # only the columns the solver reads, as plain numpy/object columns: `df.at` on a wide frame
+    # with Arrow string columns costs ~0.1 ms per lookup, which dominated the planner's runtime
+    keep = REQUIRED_COLUMNS + [c for c in ("status", "chance_of_playing_next_round") if c in df]
+    out = df[keep].copy()
+    out["pos"] = out["pos"].astype(object)
+    out["club"] = out["club"].astype(str).astype(object)
+    if "status" in out:
+        out["status"] = out["status"].astype(str).astype(object)
     out["price"] = np.round(price).astype(int)
     out["p1"] = pd.to_numeric(out["p1"]).fillna(0.0).astype(float)
     out["P_h"] = pd.to_numeric(out["P_h"]).fillna(0.0).astype(float)
@@ -94,32 +143,40 @@ def add_squad_variables(m: pulp.LpProblem, ids: list) -> tuple[dict, dict, dict]
 
 def squad_objective_expr(df: pd.DataFrame, x, y, c, bench_w: float):
     ids = list(df.index)
-    return pulp.lpSum(y[i] * df.at[i, "P_h"] + c[i] * df.at[i, "p1"] for i in ids) + bench_w * (
-        pulp.lpSum((x[i] - y[i]) * df.at[i, "P_h"] for i in ids)
+    ph, p1 = df["P_h"].to_dict(), df["p1"].to_dict()  # dict lookups: `df.at` is slow
+    return pulp.lpSum(y[i] * ph[i] + c[i] * p1[i] for i in ids) + bench_w * (
+        pulp.lpSum((x[i] - y[i]) * ph[i] for i in ids)
     )
 
 
-def add_rule_constraints(m: pulp.LpProblem, df: pd.DataFrame, x, y, c) -> None:
+def add_rule_constraints(
+    m: pulp.LpProblem, df: pd.DataFrame, x, y, c, club_limit: bool = True
+) -> None:
     """Quotas, club limit, XI shape and captaincy (everything except the budget)."""
     ids = list(df.index)
+    pos_of = df["pos"].to_dict()
+    by_pos = {p: [i for i in ids if pos_of[i] == p] for p in config.SQUAD_QUOTAS}
     for pos, n in config.SQUAD_QUOTAS.items():
-        m += pulp.lpSum(x[i] for i in ids if df.at[i, "pos"] == pos) == n, f"quota_{pos}"
-    for k, club in enumerate(sorted(df["club"].astype(str).unique())):
-        members = [i for i in ids if str(df.at[i, "club"]) == club]
-        m += pulp.lpSum(x[i] for i in members) <= config.MAX_PER_CLUB, f"club_{k}"
+        m += pulp.lpSum(x[i] for i in by_pos[pos]) == n, f"quota_{pos}"
+    if club_limit:
+        club_of = df["club"].astype(str).to_dict()
+        clubs: dict[str, list] = {}
+        for i in ids:
+            clubs.setdefault(club_of[i], []).append(i)
+        for k, club in enumerate(sorted(clubs)):
+            m += pulp.lpSum(x[i] for i in clubs[club]) <= config.MAX_PER_CLUB, f"club_{k}"
     m += pulp.lpSum(y[i] for i in ids) == config.XI_SIZE, "xi_size"
-    m += pulp.lpSum(y[i] for i in ids if df.at[i, "pos"] == "GK") == config.XI_MIN["GK"], "xi_gk"
+    m += pulp.lpSum(y[i] for i in by_pos["GK"]) == config.XI_MIN["GK"], "xi_gk"
     for pos in ("DEF", "MID", "FWD"):
-        lo = config.XI_MIN[pos]
-        m += pulp.lpSum(y[i] for i in ids if df.at[i, "pos"] == pos) >= lo, f"xi_{pos}"
+        m += pulp.lpSum(y[i] for i in by_pos[pos]) >= config.XI_MIN[pos], f"xi_{pos}"
     m += pulp.lpSum(c[i] for i in ids) == 1, "one_captain"
     for i in ids:
         m += y[i] <= x[i], f"start_in_squad_{i}"
         m += c[i] <= y[i], f"capt_starts_{i}"
 
 
-def solve(m: pulp.LpProblem) -> str:
-    m.solve(pulp.PULP_CBC_CMD(msg=False))
+def solve(m: pulp.LpProblem, time_limit: float | None = None) -> str:
+    m.solve(pulp.PULP_CBC_CMD(msg=False, timeLimit=time_limit))
     status = pulp.LpStatus[m.status]
     if status != "Optimal":
         raise InfeasibleSquadError(
@@ -184,19 +241,249 @@ def pick_squad(
     budget: int = config.BUDGET,
     bench_w: float = config.BENCH_WEIGHT,
     filter_unavailable: bool = True,
+    locked: Iterable = (),
+    banned: Iterable = (),
+    time_limit: float | None = None,
 ) -> SquadResult:
-    """Best legal 15-man squad, XI and captain for the pool. Raises ``InfeasibleSquadError``."""
-    pool = validate_pool(eligible(df) if filter_unavailable else df)
+    """Best legal 15-man squad, XI and captain for the pool. Raises ``InfeasibleSquadError``.
+
+    ``locked`` players are forced in (``x_i = 1``; they skip the availability filter) and
+    ``banned`` ones forced out (``x_i = 0``). An impossible lock set raises with the broken rule
+    named in the message and in ``.cause``.
+    """
+    locked, banned = list(dict.fromkeys(locked)), set(banned)
+    unknown = [i for i in locked if i not in df.index]
+    if unknown:
+        raise ValueError(f"locked players not in the pool: {unknown}")
+    both = sorted(set(locked) & banned)
+    if both:
+        raise InfeasibleSquadError(f"players {both} are both locked and banned", "conflict")
+    base = eligible(df) if filter_unavailable else df
+    base = pd.concat([df.loc[locked], base.drop(index=locked, errors="ignore")])
+    pool = validate_pool(base.drop(index=list(banned), errors="ignore"))
+    check_locks(pool, locked, budget)
+    pool = prune_dominated(pool, keep=locked)
     ids = list(pool.index)
     m = pulp.LpProblem("fplense_squad", pulp.LpMaximize)
     x, y, c = add_squad_variables(m, ids)
     m += squad_objective_expr(pool, x, y, c, bench_w)
-    m += pulp.lpSum(pool.at[i, "price"] * x[i] for i in ids) <= int(budget), "budget"
+    price = pool["price"].to_dict()
+    m += pulp.lpSum(price[i] * x[i] for i in ids) <= int(budget), "budget"
     add_rule_constraints(m, pool, x, y, c)
-    status = solve(m)
+    for i in locked:
+        m += x[i] == 1, f"lock_{i}"
+    try:
+        status = solve(m, time_limit)
+    except InfeasibleSquadError as exc:
+        if not locked:
+            raise
+        raise InfeasibleSquadError(
+            f"no legal squad contains all {len(locked)} locked players: the club limit and the "
+            "position quotas can't both be met within the budget",
+            "infeasible",
+        ) from exc
     return result_from_selection(
         pool, _chosen(x, ids), _chosen(y, ids), _chosen(c, ids)[0], bench_w, status
     )
+
+
+def money(tenths: int) -> str:
+    """``55`` -> ``"£5.5m"``."""
+    return f"£{tenths / 10:.1f}m"
+
+
+def check_locks(pool: pd.DataFrame, locked: list, budget: int = config.BUDGET) -> None:
+    """Fail fast, naming the rule, when the locked players alone rule out every legal squad."""
+    if not locked:
+        return
+    lk = pool.loc[locked]
+    for pos, n in lk["pos"].value_counts().items():
+        if n > config.SQUAD_QUOTAS[pos]:
+            raise InfeasibleSquadError(
+                f"{n} {pos} locked, but a squad holds only {config.SQUAD_QUOTAS[pos]} {pos}",
+                "quota",
+            )
+    for club, n in lk["club"].astype(str).value_counts().items():
+        if n > config.MAX_PER_CLUB:
+            raise InfeasibleSquadError(
+                f"{n} {club} players locked, but at most {config.MAX_PER_CLUB} per club "
+                "are allowed",
+                "club limit",
+            )
+    cost = int(lk["price"].sum())
+    rest = pool.drop(index=locked)
+    fill = 0
+    for pos, n in config.SQUAD_QUOTAS.items():
+        need = n - int((lk["pos"] == pos).sum())
+        prices = rest.loc[rest["pos"] == pos, "price"].nsmallest(need)
+        if len(prices) < need:
+            raise InfeasibleSquadError(
+                f"not enough {pos} left in the pool to fill the squad", "quota"
+            )
+        fill += int(prices.sum())
+    if cost + fill > budget:
+        raise InfeasibleSquadError(
+            f"the locked players cost {money(cost)}; even with the cheapest players in the other "
+            f"{sum(config.SQUAD_QUOTAS.values()) - len(locked)} slots the squad costs "
+            f"{money(cost + fill)}, over the {money(budget)} budget",
+            "budget",
+        )
+
+
+def best_lineup(df: pd.DataFrame, squad, bench_w: float = config.BENCH_WEIGHT) -> SquadResult:
+    """Best XI, bench order, captain and vice for a **fixed** 15-man squad (the lineup helper).
+
+    The squad ILP's objective with every squad variable fixed to 1 (and no budget or club limit:
+    the squad is given). Pass a pool whose ``p1`` and ``P_h`` are next-GW points to optimise a
+    single gameweek.
+    """
+    squad = list(dict.fromkeys(squad))
+    pool = validate_pool(df.loc[squad])
+    counts = pool["pos"].value_counts()
+    if len(squad) != 15 or any(counts.get(p, 0) != n for p, n in config.SQUAD_QUOTAS.items()):
+        raise ValueError("the lineup helper needs a full 2-5-5-3 squad of 15")
+    ids = list(pool.index)
+    m = pulp.LpProblem("fplense_lineup", pulp.LpMaximize)
+    x, y, c = add_squad_variables(m, ids)
+    m += squad_objective_expr(pool, x, y, c, bench_w)
+    add_rule_constraints(m, pool, x, y, c, club_limit=False)
+    for i in ids:
+        m += x[i] == 1, f"fixed_{i}"
+    status = solve(m)
+    return result_from_selection(pool, ids, _chosen(y, ids), _chosen(c, ids)[0], bench_w, status)
+
+
+def rule_problems(
+    df: pd.DataFrame,
+    squad,
+    starters=None,
+    captain=None,
+    vice=None,
+    budget: int = config.BUDGET,
+    enforce_budget: bool = True,
+) -> list[dict]:
+    """Plain-English rule report for any (possibly partial) squad: ``[{rule, message}]``.
+
+    Works on 0-15 players so a team builder can show it live. ``enforce_budget=False`` leaves the
+    budget out (real teams can be worth more than £100m after price rises).
+    """
+    out: list[dict] = []
+    ids = list(squad)
+    dupes = sorted({i for i in ids if ids.count(i) > 1})
+    if dupes:
+        out.append({"rule": "duplicate", "message": f"players picked more than once: {dupes}"})
+    ids = list(dict.fromkeys(ids))
+    unknown = [i for i in ids if i not in df.index]
+    if unknown:
+        out.append({"rule": "unknown", "message": f"unknown player ids: {unknown}"})
+    ids = [i for i in ids if i in df.index]
+    sq = df.loc[ids]
+    size = sum(config.SQUAD_QUOTAS.values())
+    if len(ids) != size:
+        out.append({"rule": "size", "message": f"{len(ids)} of {size} players picked"})
+    counts = sq["pos"].value_counts()
+    for pos, n in config.SQUAD_QUOTAS.items():
+        have = int(counts.get(pos, 0))
+        if have > n:
+            out.append({"rule": "quota", "message": f"{have} {pos}: a squad holds exactly {n}"})
+        elif have < n and len(ids) == size:
+            out.append({"rule": "quota", "message": f"{have} {pos}: a squad needs exactly {n}"})
+    for club, n in sq["club"].astype(str).value_counts().items():
+        if n > config.MAX_PER_CLUB:
+            msg = f"{n} players from {club}: max {config.MAX_PER_CLUB} per club"
+            out.append({"rule": "club", "message": msg})
+    cost = int(sq["price"].sum()) if len(sq) else 0
+    if enforce_budget and cost > budget:
+        msg = f"costs {money(cost)}: {money(cost - budget)} over the {money(budget)} budget"
+        out.append({"rule": "budget", "message": msg})
+    if starters is not None:
+        xi = [i for i in dict.fromkeys(starters) if i in df.index]
+        if len(xi) != config.XI_SIZE or not set(xi) <= set(ids):
+            out.append({"rule": "xi", "message": "the starting XI must be 11 squad players"})
+        xc = df.loc[xi, "pos"].value_counts()
+        if xc.get("GK", 0) != 1:
+            out.append({"rule": "xi", "message": "the XI needs exactly 1 goalkeeper"})
+        for pos in ("DEF", "MID", "FWD"):
+            if xc.get(pos, 0) < config.XI_MIN[pos]:
+                msg = f"the XI needs at least {config.XI_MIN[pos]} {pos}"
+                out.append({"rule": "xi", "message": msg})
+        if captain is not None and captain not in xi:
+            out.append({"rule": "captain", "message": "the captain must be in the XI"})
+        if vice is not None and (vice not in xi or vice == captain):
+            out.append({"rule": "captain", "message": "the vice-captain must be another starter"})
+    return out
+
+
+SHAPE_RULES = {"size", "quota", "duplicate", "unknown"}
+
+
+def evaluate_squad(
+    df: pd.DataFrame,
+    squad,
+    starters=None,
+    captain=None,
+    vice=None,
+    gw_cols: dict[int, str] | None = None,
+    actual: pd.DataFrame | None = None,
+    budget: int = config.BUDGET,
+    enforce_budget: bool = True,
+) -> dict:
+    """Expected points per GW, cost and rule report for any squad (+ actual points if known).
+
+    ``gw_cols`` maps GW -> the pool column holding that GW's expected points. Without
+    ``starters``, a full 2-5-5-3 squad gets the lineup helper's XI (on the first GW's points).
+    ``actual`` (indexed by player, columns ``points`` and ``minutes``) scores the XI with the
+    backtest's simplified auto-subs and the captain doubled (the vice's if the captain didn't
+    play).
+    """
+    squad = list(squad)
+    problems = rule_problems(df, squad, starters, captain, vice, budget, enforce_budget)
+    known = [i for i in dict.fromkeys(squad) if i in df.index]
+    cost = int(df.loc[known, "price"].sum()) if known else 0
+    gw_cols = gw_cols or {}
+    first = next(iter(gw_cols.values()), "p1")
+    full = not any(p["rule"] in SHAPE_RULES for p in problems)
+    if starters is None and full:
+        lineup = best_lineup(df.assign(P_h=df[first], p1=df[first]), known)
+        starters, bench = lineup.starters, lineup.bench
+        captain, vice = lineup.captain, lineup.vice
+    else:
+        start_set = set(starters or [])
+        bench = [i for i in known if i not in start_set]
+    xi = [i for i in (starters or []) if i in df.index]
+    expected = {
+        gw: float(df.loc[xi, col].fillna(0).sum() + (df.at[captain, col] if captain in xi else 0.0))
+        for gw, col in gw_cols.items()
+    }
+    out = {
+        "cost": cost,
+        "bank": int(budget) - cost,
+        "problems": problems,
+        "legal": not problems,
+        "starters": list(xi),
+        "bench": list(bench),
+        "captain": captain,
+        "vice": vice,
+        "expected": expected,
+        "actual": None,
+    }
+    if actual is not None and len(xi) == config.XI_SIZE and captain is not None:
+        out["actual"] = score_actual(df.loc[known, "pos"], actual, xi, bench, captain, vice)
+    return out
+
+
+def score_actual(pos: pd.Series, actual: pd.DataFrame, starters, bench, captain, vice) -> dict:
+    """Actual points of a lineup: XI with the backtest's auto-subs, captain (or vice) doubled."""
+    from types import SimpleNamespace
+
+    from fPLense.optimize.backtest import score_gw
+
+    ids = list(pos.index)
+    a = actual.reindex(ids)[["points", "minutes"]].fillna(0)
+    a["pos"] = pos
+    res = SimpleNamespace(starters=list(starters), bench=list(bench), captain=captain, vice=vice)
+    pts, info = score_gw(a, res)
+    return {"points": int(pts), "subs": info["subs"], "armband": info["armband"]}
 
 
 # --- baselines for comparison -----------------------------------------------------------------

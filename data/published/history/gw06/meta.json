@@ -1,0 +1,14 @@
+{
+  "gw": 6,
+  "made_at": "2026-10-08T16:45:02+00:00",
+  "model_sha256": "f0850292d2dba630082eb84d7986c2cf2567368ce9be00d0befda1339e52c81a",
+  "model_train_max_season": "2025-26",
+  "source": "live",
+  "horizon_gws": [
+    6,
+    7,
+    8,
+    9,
+    10
+  ]
+}

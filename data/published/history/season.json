@@ -1,0 +1,388 @@
+{
+  "season": "2026-27",
+  "generated_at": "2026-10-09T04:01:59+00:00",
+  "last_finished_gw": 5,
+  "next_gw": 6,
+  "events": [
+    {
+      "gw": 1,
+      "deadline_time": "2026-08-21T17:30:00Z",
+      "finished": true,
+      "data_checked": true,
+      "average_entry_score": 50,
+      "highest_score": 131,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 2,
+      "deadline_time": "2026-08-28T17:30:00Z",
+      "finished": true,
+      "data_checked": true,
+      "average_entry_score": 81,
+      "highest_score": 161,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 3,
+      "deadline_time": "2026-09-04T17:30:00Z",
+      "finished": true,
+      "data_checked": true,
+      "average_entry_score": 51,
+      "highest_score": 119,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 4,
+      "deadline_time": "2026-09-12T12:30:00Z",
+      "finished": true,
+      "data_checked": true,
+      "average_entry_score": 69,
+      "highest_score": 151,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 5,
+      "deadline_time": "2026-09-18T17:30:00Z",
+      "finished": true,
+      "data_checked": true,
+      "average_entry_score": 48,
+      "highest_score": 126,
+      "is_current": true,
+      "is_next": false
+    },
+    {
+      "gw": 6,
+      "deadline_time": "2026-10-10T10:00:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": true
+    },
+    {
+      "gw": 7,
+      "deadline_time": "2026-10-17T10:00:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 8,
+      "deadline_time": "2026-10-23T17:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 9,
+      "deadline_time": "2026-10-31T11:00:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 10,
+      "deadline_time": "2026-11-06T18:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 11,
+      "deadline_time": "2026-11-21T11:00:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 12,
+      "deadline_time": "2026-11-27T18:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 13,
+      "deadline_time": "2026-12-02T18:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 14,
+      "deadline_time": "2026-12-05T13:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 15,
+      "deadline_time": "2026-12-12T13:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 16,
+      "deadline_time": "2026-12-19T13:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 17,
+      "deadline_time": "2026-12-26T11:00:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 18,
+      "deadline_time": "2026-12-29T18:00:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 19,
+      "deadline_time": "2027-01-01T18:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 20,
+      "deadline_time": "2027-01-05T18:00:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 21,
+      "deadline_time": "2027-01-16T13:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 22,
+      "deadline_time": "2027-01-23T13:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 23,
+      "deadline_time": "2027-01-30T13:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 24,
+      "deadline_time": "2027-02-06T13:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 25,
+      "deadline_time": "2027-02-10T18:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 26,
+      "deadline_time": "2027-02-20T13:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 27,
+      "deadline_time": "2027-02-27T13:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 28,
+      "deadline_time": "2027-03-03T18:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 29,
+      "deadline_time": "2027-03-13T13:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 30,
+      "deadline_time": "2027-03-20T13:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 31,
+      "deadline_time": "2027-04-10T12:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 32,
+      "deadline_time": "2027-04-17T12:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 33,
+      "deadline_time": "2027-04-24T12:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 34,
+      "deadline_time": "2027-05-01T12:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 35,
+      "deadline_time": "2027-05-08T12:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 36,
+      "deadline_time": "2027-05-15T12:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 37,
+      "deadline_time": "2027-05-23T12:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    },
+    {
+      "gw": 38,
+      "deadline_time": "2027-05-30T13:30:00Z",
+      "finished": false,
+      "data_checked": false,
+      "average_entry_score": 0,
+      "highest_score": null,
+      "is_current": false,
+      "is_next": false
+    }
+  ]
+}

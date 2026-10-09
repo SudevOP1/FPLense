@@ -513,6 +513,28 @@ def run_predict(
     }
     (out_dir / config.LATEST_PATH.name).write_text(json.dumps(latest, indent=2), encoding="utf-8")
     publish_assets(out_dir)
+
+    # P6: the write-once season archive, card ratings and the fixture list the API serves
+    from fPLense.etl.ratings import publish_ratings
+    from fPLense.models import history
+
+    publish_ratings(table, next_gw, out_dir)
+    history._write_json(
+        out_dir / config.FIXTURES_PUBLISHED_PATH.name, history.fixtures_doc(fixtures, teams)
+    )
+    meta_path = out_dir / config.MODEL_META_PATH.name
+    if meta_path.exists():
+        model_meta = history.read_model_meta(out_dir / config.MODEL_PATH.name, meta_path)
+        history.archive_live(
+            table,
+            squad_doc,
+            next_gw,
+            latest["generated_at"],
+            model_meta,
+            out_dir / config.HISTORY_DIR.name,
+        )
+    else:
+        log.warning("%s missing: GW%d not archived (run --train)", meta_path, next_gw)
     return {"latest": latest, "squad": squad_doc, "table": table}
 
 

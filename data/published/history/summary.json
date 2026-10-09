@@ -1,0 +1,77 @@
+{
+  "season": "2026-27",
+  "generated_at": "2026-10-09T04:02:36+00:00",
+  "note": "capture_ratio = model pick actual / hindsight-best: a product stat, not a claim; hindsight-best is the best legal \u00a3100m squad on actual points, not FPL's Dream Team",
+  "gws": [
+    {
+      "gw": 1,
+      "source": "backfill",
+      "made_at": "2026-10-09T04:02:11+00:00",
+      "model_expected": 40.2,
+      "model_actual": 31,
+      "model_cost": 1000,
+      "hindsight_points": 165,
+      "hindsight_cost": 845,
+      "shared_players": 0,
+      "average_entry_score": 50,
+      "highest_score": 131,
+      "capture_ratio": 0.1879
+    },
+    {
+      "gw": 2,
+      "source": "backfill",
+      "made_at": "2026-10-09T04:02:19+00:00",
+      "model_expected": 58.56,
+      "model_actual": 116,
+      "model_cost": 996,
+      "hindsight_points": 166,
+      "hindsight_cost": 976,
+      "shared_players": 2,
+      "average_entry_score": 81,
+      "highest_score": 161,
+      "capture_ratio": 0.6988
+    },
+    {
+      "gw": 3,
+      "source": "backfill",
+      "made_at": "2026-10-09T04:02:28+00:00",
+      "model_expected": 56.37,
+      "model_actual": 62,
+      "model_cost": 999,
+      "hindsight_points": 142,
+      "hindsight_cost": 840,
+      "shared_players": 1,
+      "average_entry_score": 51,
+      "highest_score": 119,
+      "capture_ratio": 0.4366
+    },
+    {
+      "gw": 4,
+      "source": "backfill",
+      "made_at": "2026-10-09T04:02:33+00:00",
+      "model_expected": 54.49,
+      "model_actual": 49,
+      "model_cost": 1000,
+      "hindsight_points": 163,
+      "hindsight_cost": 781,
+      "shared_players": 2,
+      "average_entry_score": 69,
+      "highest_score": 151,
+      "capture_ratio": 0.3006
+    },
+    {
+      "gw": 5,
+      "source": "backfill",
+      "made_at": "2026-10-09T04:02:35+00:00",
+      "model_expected": 52.91,
+      "model_actual": 29,
+      "model_cost": 1000,
+      "hindsight_points": 167,
+      "hindsight_cost": 814,
+      "shared_players": 0,
+      "average_entry_score": 48,
+      "highest_score": 126,
+      "capture_ratio": 0.1737
+    }
+  ]
+}

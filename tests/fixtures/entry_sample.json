@@ -1,0 +1,41 @@
+{
+ "id": 6740613,
+ "joined_time": "2026-08-20T11:14:34.187999Z",
+ "started_event": 1,
+ "favourite_team": null,
+ "player_first_name": "Sudev",
+ "player_last_name": "OP",
+ "player_region_id": 100,
+ "player_region_name": "India",
+ "player_region_iso_code_short": "IN",
+ "player_region_iso_code_long": "IND",
+ "years_active": 0,
+ "current_event": 5,
+ "leagues": {
+  "classic": [],
+  "h2h": [],
+  "cup": {
+   "matches": [],
+   "status": {}
+  },
+  "cup_matches": []
+ },
+ "name": "FC Barcelona",
+ "name_change_blocked": false,
+ "entered_events": [
+  1,
+  2,
+  3,
+  4,
+  5
+ ],
+ "kit": null,
+ "last_deadline_bank": 21,
+ "last_deadline_value": 995,
+ "last_deadline_total_transfers": 9,
+ "club_badge_src": null,
+ "summary_overall_points": 216,
+ "summary_event_points": 56,
+ "summary_event_rank": 2764753,
+ "summary_overall_rank": 9344094
+}

@@ -84,6 +84,32 @@ HISTORY_PAST_KEYS = {"season_name", "total_points", "minutes"}
 PICKS_KEYS = {"picks", "entry_history"}
 PICK_KEYS = {"element", "position", "is_captain", "is_vice_captain"}
 ENTRY_HISTORY_KEYS = {"event", "bank", "value"}
+# entry/{id}/ and entry/{id}/history/ (P6 My Team; samples in tests/fixtures/entry_*.json)
+ENTRY_KEYS = {
+    "id",
+    "name",
+    "player_first_name",
+    "player_last_name",
+    "current_event",
+    "summary_overall_points",
+    "summary_overall_rank",
+    "last_deadline_bank",
+    "last_deadline_value",
+}
+ENTRY_SEASON_KEYS = {"current", "chips"}
+ENTRY_GW_KEYS = {
+    "event",
+    "points",
+    "total_points",
+    "rank",
+    "overall_rank",
+    "bank",
+    "value",
+    "event_transfers",
+    "event_transfers_cost",
+    "points_on_bench",
+}
+CHIP_KEYS = {"name", "event"}
 
 # Lake columns that are counts/stats: 0 on a synthesized 0-minute row.
 ZERO_STAT_COLUMNS = [
@@ -189,6 +215,16 @@ def check_picks(data: Mapping) -> None:
     check_fields(data, PICKS_KEYS, "picks")
     check_records(data["picks"], PICK_KEYS, "picks.picks")
     check_fields(data["entry_history"], ENTRY_HISTORY_KEYS, "picks.entry_history")
+
+
+def check_entry(data: Mapping) -> None:
+    check_fields(data, ENTRY_KEYS, "entry")
+
+
+def check_entry_history(data: Mapping) -> None:
+    check_fields(data, ENTRY_SEASON_KEYS, "entry.history")
+    check_records(data["current"], ENTRY_GW_KEYS, "entry.history.current")
+    check_records(data["chips"], CHIP_KEYS, "entry.history.chips")
 
 
 def parse_picks(data: Mapping) -> dict[str, Any]:

@@ -1,9 +1,7 @@
-"""Data access and pure helpers for the Streamlit app (``app/``).
+"""Pure helpers over ``data/published/`` (loaders, horizon recompute, filters, SHAP waterfall
+data, pitch grouping, metrics table), reused by the FastAPI backend (``fPLense.api``).
 
-The app reads only ``data/published/`` (plus a picks fetch when the user submits a team ID on the
-Transfer Planner). Everything here is plain pandas so it can be unit-tested without Streamlit;
-the pages add ``st.cache_data`` around the loaders.
-"""
+Everything here is plain pandas so it can be unit-tested on its own."""
 
 from __future__ import annotations
 
