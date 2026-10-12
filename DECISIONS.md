@@ -254,3 +254,42 @@ Full lists in `tests/fixtures/api_fields.json`; trimmed samples (5 items per lis
 - **Backtest tie-breaking.** Rerunning `--backtest` after the pruning change gave A 1,751 (same), C 1,844 (same), **B 1,842 (was 1,826)**; A − B −91 [−299, +102], still not significant. Cause: B0 predictions are averages of integer points, so many squads tie on the objective (only 16.7% of GW5 regulars' B0 values are distinct vs 100% for LightGBM); pruning changes which tied optimum CBC returns, and the one-path backtest then diverges. The committed P4 artifacts (`backtest.json`, `backtest_cumulative.png`, model card) were **kept at the P4 run**; a future `--backtest` will print ~1,842 for B. Neither number is a claim; the conclusion (no significant decision-layer gain) holds either way.
 - **httpx client per event loop.** The proxy first created its `AsyncClient` at app creation; a request on a second event loop (TestClient without `with`, a reloaded worker) reused a pooled connection tied to a closed loop → `RuntimeError: Event loop is closed`. The client (and the limiter's lock) are now created lazily inside the running loop and rebuilt when the loop changes. Found by a real-FPL smoke call; regression test added (MockTransport has no pool, so the offline tests couldn't see it).
 - **Real-data check of the scoring:** for the developer's team, `/api/entry/{id}/gw/5` scored the GW5 picks at **56**, FPL's official 56, with the same auto-sub (165 → 15) FPL applied.
+
+## P7: React frontend (2026-10-09)
+
+### Stack and versions
+- **React 18** (PLAN's pin) with Vite 6, TypeScript 5.7 strict, Tailwind **3.4** (PLAN names `tailwind.config.ts`; v4 drops the JS config), React Router 6 with the v7 future flags on, TanStack Query 5, dnd-kit, Recharts 2.15, Framer Motion 11. **Vitest 3** (Vitest 2 bundles Vite 5, whose plugin types clash with Vite 6). ESLint 9 **flat config** (`eslint.config.js`) instead of the `.eslintrc.cjs` in PLAN §6: ESLint 9 dropped the legacy format.
+- Fonts self-hosted with `@fontsource-variable` (no Google CDN: privacy, and the browser talks only to our API). A tiny Vite plugin preloads the two Latin `woff2` files; `@font-face` fallbacks on Arial with `size-adjust`/`ascent-override` keep the swap from shifting the layout.
+- Palette: navy + coral (developer's choice). Coral is a fill (`--accent`, navy text on it) and a darker text-safe coral (`--coral`, 5.3:1 on white). Compare slots use the Okabe-Ito blue / vermillion / bluish green, darkened in light mode so white letters pass 4.5:1, and always carry the letter.
+
+### Data flow
+- Types come from `web/openapi.json` via `openapi-typescript` (`src/api/schema.d.ts`, committed so `tsc` works without the API). `/api/model` is free-form JSON, so `ModelCard` is typed by hand.
+- **Solver calls are queries, not mutations** (`/optimize`, `/evaluate`, `/compare`, `/transfers/plan`): keyed on their inputs, so changing a setting cancels the request in flight (the `AbortSignal` goes to `fetch`), cached results come back instantly, and `keepPreviousData` keeps the old squad on screen under a "Re-solving…" shimmer.
+- **Every page state lives in the URL**: Best Team `?budget&h&bw&lock&ban`, Season `?gw`, Compare `?a=kind.gw.value&b=…&c=…` (plus `?t=<code>` as slot A), Builder `?t=<code>` / `?add=<id>`, Players `?sort&dir&pos`. Ad-hoc squads (Builder drafts, transfer targets, custom best teams) travel as **team codes**, so a compare link never needs a server-side store.
+- Compare's default (empty URL) is the model pick vs the hindsight best for the last finished GW: the most interesting comparison for a first visit.
+
+### Builder model
+- The draft is 11 XI slots + 4 bench slots, each with a **fixed position that travels with its player** on swaps. The squad can't leave 2-5-5-3 by construction; swaps are refused if the XI would break 1 GK / ≥3 DEF / ≥2 MID / ≥1 FWD. Pure functions in `lib/builder.ts` (place, swap, armbands, undo/redo history) are unit-tested apart from the UI.
+- **Club limit and positions are blocked at placement; the budget is not** (the chip turns red). Planning a squad often means going over and then downgrading; the server check and the code still report it.
+- Client rules (`lib/squadRules.ts`) mirror the Python `rule_problems` messages word for word, so the instant chip and the debounced `/evaluate` confirmation say the same thing.
+- Drag uses mouse + touch sensors (touch with a 180 ms press, so the page still scrolls); the keyboard / screen-reader path is tap-to-place and tap-to-swap, which is why the slot wrappers carry no dnd-kit ARIA attributes (they'd nest interactive roles around the card button).
+
+### Motion and accessibility
+- Reduced motion = OS setting **or** the in-app toggle. It sets Framer's `MotionConfig reducedMotion="always"`, mounts animated elements in their final state (`initial={false}`), skips count-ups and confetti, and a CSS rule zeroes CSS transitions. Confetti is at most once per session per event (`sessionStorage`). Nothing runs longer than 400 ms.
+- Chart colours are read from the CSS tokens at runtime (SVG presentation attributes can't use `var()`); lines animate only on first mount. Every chart has a visually hidden summary and a "Show as table" toggle; series differ by dash pattern too, not colour alone.
+- Photo alt text is "Photo of <name>" as PLAN asks (the `jsx-a11y/img-redundant-alt` rule is disabled on that one line).
+- The player drawer is a lazy chunk, so the first paint never downloads Recharts (main chunk 12.8 KB gzip).
+
+### Pitch and cards
+- The pitch is a fixed image (`web/src/assets/football_field_bg.png`, goal at the top so the GK row sits by it) rather than CSS gradients. `.pitch` uses the image aspect ratio (1277 / 1058) as a minimum height and stretches the image (`100% 100%`) when the four card rows need more height, so the whole field always shows instead of being cropped. Rows spread over it with `justify-around`.
+- Club colour strips on cards and club-tinted fallback silhouettes were dropped (developer request, 2026-10-09); `lib/clubs.ts` is gone. Club is still shown as text (tooltip, tables).
+- Pitch and its bench are capped at 540 px wide and cards at 76 px so GK and FWD rows fit on one laptop screen.
+- Pitch cards crop the photo to its top half (`PlayerPhoto face`, 110:70, `object-top`), roughly 40 px shorter per card at max width. The photo strip got too short for four overlays, so the captain / vice armband and the availability flag moved into the name row; the rating badge and ⋯ stay on the photo.
+- Rating badge shows only the number (the "FPLN" subscript is gone; "FPLense rating" stays in the tooltip / aria-label), coloured by band from `ratingTier` in `lib/format.ts`. Band hues are fixed hex, not theme tokens, so they read the same in both themes; text colour per band keeps >= 4.5:1 contrast.
+- The card action menu is portalled to `<body>` with `position: fixed` under the ⋯ button: both the card and the pitch are `overflow-hidden`, which clipped the old absolutely positioned list. It closes on scroll / resize instead of tracking the button.
+
+### Tests
+- **MSW fixtures are real API output**: `scripts/make_web_fixtures.py` runs the FastAPI app on the synthetic `tests/published_mini` folder with the fake FPL transport from `tests/conftest.py` and saves each response (plus `/api/model` from the committed `data/published/`). The transfer fixture plans a path to GW2's hindsight team, because the mini entry already owns the best squad (its path would be empty).
+- **jsdom vs Node fetch:** jsdom replaces `AbortController`, but Node's `fetch`/`Request` (undici) only accept their own `AbortSignal`, so every request with a TanStack or React Router signal threw. `src/test/polyfills.ts` (its own setup file, loaded before MSW wraps `fetch`) drops signals in tests; cancellation itself isn't under test.
+- axe runs on every page in both themes with no rules disabled. jsdom has no layout, so axe reports colour contrast as "incomplete", not as a pass: contrast is checked by hand on `/dev/kitchen-sink`.
+- `findBy*` timeout raised to 8 s: pages are lazy chunks and the first visit in a test file waits for Vite to transform them.

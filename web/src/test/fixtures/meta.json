@@ -1,0 +1,42 @@
+{
+ "season": "2026-27",
+ "current_gw": 2,
+ "next_gw": 3,
+ "deadline": "2026-09-05T10:00:00+00:00",
+ "gws": [
+  3,
+  4
+ ],
+ "finished_gws": [
+  1,
+  2
+ ],
+ "archived_gws": [
+  1,
+  2
+ ],
+ "backfilled_gws": [
+  1
+ ],
+ "live_gws": [
+  2
+ ],
+ "generated_at": "2026-09-03T05:00:00+00:00",
+ "data_through_gw": 2,
+ "horizon_max": 5,
+ "budget": 1000,
+ "headline": {
+  "gain_pct": 11.4,
+  "ci": [
+   10.2,
+   12.6
+  ],
+  "mae": 2.246,
+  "b0_mae": 2.535,
+  "n": 7365,
+  "season": "2025-26",
+  "spearman": 0.32,
+  "b0_spearman": 0.17
+ },
+ "rating_source": "fplense"
+}

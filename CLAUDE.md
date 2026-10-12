@@ -16,7 +16,7 @@ Pipeline: Python ETL (vaastav GitHub history + FPL API + football-data.co.uk odd
 
 - Python 3.12, pandas, pyarrow, DuckDB, scikit-learn, LightGBM, SciPy, SHAP, **PuLP pinned `>=3.3,<4`** (bundled CBC, `LpVariable.dicts` API), FastAPI + uvicorn + httpx (backend), React 18 + TypeScript + Vite + Tailwind + TanStack Query + dnd-kit + Recharts (frontend, `web/`), Matplotlib/Seaborn, pytest, ruff, Vitest.
 - Package `fPLense` in src layout: `src/fPLense/{config.py, etl/, db/, models/, optimize/, api/, pipeline.py}`. Frontend in `web/`. Notebooks in `notebooks/`. Tests in `tests/`. Full tree in PLAN.md §6.
-- Data: `data/raw/`, `data/lake/`, `data/fplense.duckdb` are **gitignored**. Only `data/published/` (predictions, squad JSON, metrics, `model.txt` + `model_meta.json`, `history/` archive, actuals, ratings) is committed. `web/openapi.json` is regenerated with `python -m fPLense.api.export_openapi` whenever the API schema changes (a test checks for drift).
+- Data: `data/raw/`, `data/lake/`, `data/fplense.duckdb` are **gitignored**. Only `data/published/` (predictions, squad JSON, metrics, `model.txt` + `model_meta.json`, `history/` archive, actuals, ratings) is committed. `web/openapi.json` is regenerated with `python -m fPLense.api.export_openapi` whenever the API schema changes (a test checks for drift); then run `npm run gen:types` in `web/` (→ `web/src/api/schema.d.ts`) and `python scripts/make_web_fixtures.py` (→ `web/src/test/fixtures/`, the MSW mock data, produced by the real API on the synthetic `published_mini` folder).
 - Dev machine is Windows (PowerShell). Paths in code use `pathlib`; no hard-coded separators.
 
 ## Commands

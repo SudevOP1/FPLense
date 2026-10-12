@@ -1,0 +1,199 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Metric-matched fallbacks so the swap to the web fonts doesn't shift the layout. */
+@font-face {
+  font-family: "Inter-fallback";
+  src: local("Arial");
+  ascent-override: 90.44%;
+  descent-override: 22.52%;
+  line-gap-override: 0%;
+  size-adjust: 107.12%;
+}
+@font-face {
+  font-family: "SpaceGrotesk-fallback";
+  src: local("Arial");
+  ascent-override: 89.71%;
+  descent-override: 26.62%;
+  line-gap-override: 0%;
+  size-adjust: 109.81%;
+}
+
+/* Design tokens: navy + coral on neutral surfaces. Colours are "R G B" so Tailwind can add alpha. */
+:root,
+[data-theme="light"] {
+  --bg: 246 247 251;
+  --surface: 255 255 255;
+  --raised: 255 255 255;
+  --line: 222 226 236;
+  --ink: 14 24 52;
+  --muted: 84 94 124;
+  --navy: 20 36 79;
+  --coral: 196 62 44; /* text-safe coral (5.3:1 on white) */
+  --accent: 255 107 87; /* coral fill; text on it uses --on-accent */
+  --on-accent: 14 24 52;
+  --good: 13 122 72;
+  --bad: 196 40 40;
+  --warn: 166 82 0;
+  /* compare slots A/B/C: Okabe-Ito blue, orange, bluish green (colour-blind safe) + always a letter */
+  --slot-a: 0 114 178;
+  --slot-b: 190 80 0;
+  --slot-c: 0 120 88;
+  --on-slot: 255 255 255;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --shadow-sm: 0 1px 2px rgb(14 24 52 / 0.06);
+  --shadow: 0 2px 8px rgb(14 24 52 / 0.08), 0 1px 2px rgb(14 24 52 / 0.06);
+  --shadow-lg: 0 12px 32px rgb(14 24 52 / 0.14), 0 2px 6px rgb(14 24 52 / 0.08);
+
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  color-scheme: light;
+}
+
+/* not limited to :root, so the kitchen-sink route can show both themes side by side */
+[data-theme="dark"] {
+  --bg: 8 14 33;
+  --surface: 15 24 52;
+  --raised: 22 33 66;
+  --line: 40 54 96;
+  --ink: 236 240 250;
+  --muted: 163 173 204;
+  --navy: 150 172 238;
+  --coral: 255 142 124;
+  --accent: 255 107 87;
+  --on-accent: 14 24 52;
+  --good: 74 222 128;
+  --bad: 248 113 113;
+  --warn: 251 191 36;
+  --slot-a: 86 180 233;
+  --slot-b: 230 159 0;
+  --slot-c: 52 211 153;
+  --on-slot: 14 24 52;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow: 0 2px 8px rgb(0 0 0 / 0.45);
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.55);
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: 4.5rem;
+  }
+  body {
+    @apply bg-bg font-sans text-ink antialiased;
+    min-height: 100dvh;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    @apply font-display tracking-tight;
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  button,
+  [role="button"],
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer components {
+  .num {
+    font-variant-numeric: tabular-nums;
+    @apply font-display;
+  }
+  .card {
+    @apply rounded-lg border border-line bg-surface shadow-sm;
+  }
+  .btn {
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded px-4 text-sm font-semibold transition duration-fast ease-out disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-on-accent hover:brightness-105 active:scale-[0.98];
+  }
+  .btn-secondary {
+    @apply btn border border-line bg-surface text-ink hover:bg-raised hover:shadow-sm active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply btn text-ink hover:bg-line/40 active:scale-[0.98];
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold;
+  }
+  .field {
+    @apply min-h-[44px] w-full rounded border border-line bg-surface px-3 text-sm text-ink placeholder:text-muted;
+  }
+  .label {
+    @apply text-xs font-semibold uppercase tracking-wide text-muted;
+  }
+  .sr-only-focusable:not(:focus) {
+    @apply sr-only;
+  }
+}
+
+/* Loading shimmer: the only looping animation. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgb(var(--line) / 0.6);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(var(--surface) / 0.55), transparent);
+  animation: shimmer 1.2s infinite;
+}
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Pitch image (1277x1058, goal at the top) stretched to the frame; its aspect ratio is the
+   frame's minimum height. */
+.pitch {
+  aspect-ratio: 1277 / 1058;
+  background: url("./assets/football_field_bg.png") center / 100% 100% no-repeat;
+}
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Chart text and grid follow the nearest data-theme (CSS beats SVG presentation attributes). */
+.recharts-cartesian-axis-tick-value {
+  fill: rgb(var(--muted));
+}
+.recharts-cartesian-grid line,
+.recharts-cartesian-axis-line {
+  stroke: rgb(var(--line));
+}

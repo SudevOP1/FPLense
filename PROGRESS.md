@@ -193,3 +193,26 @@ Template:
 - A rerun of `--backtest` now gives B 1,842 instead of 1,826 (tie-breaking, DECISIONS.md P6); committed P4 artifacts kept.
 - P8: the refresh workflow should run `--history` daily (cheap) next to the deadline-gated `--predict`; the Render image must include `data/published/` and `model_meta.json`.
 - The GW1 backfill has no form features (season start), so its pick is close to price-driven; that's honest as-of behaviour, not a bug.
+
+## P7: React frontend (2026-10-09)
+**Shipped:**
+- `web/`: Vite 6 + React 18 + TypeScript 5.7 (strict) + Tailwind 3 + TanStack Query 5 + React Router 6 (v7 flags on) + dnd-kit + Recharts 2 + Framer Motion 11 + html-to-image; Inter + Space Grotesk self-hosted (`@fontsource-variable`), Latin subsets preloaded, metric-matched fallbacks. ESLint 9 flat config (`typescript-eslint`, `react-hooks`, `jsx-a11y`).
+- Design system (`src/theme.css`, `tailwind.config.ts`): navy + coral tokens, light/dark (system default + toggle, no flash), radius/shadow/motion scales; Okabe-Ito slot colours A/B/C always shown with the letter. `lib/motion.ts` tokens (120/200/320 ms, one ease-out, one spring), reduced motion from the OS or the in-app toggle.
+- API layer: types generated from `web/openapi.json` (`npm run gen:types` → `src/api/schema.d.ts`), `client.ts` (JSON errors → `ApiError` with friendly 404/429/503 text), one TanStack hook per endpoint; solver calls are queries keyed on their inputs (in-flight requests cancelled, previous result kept on screen).
+- Pages: Home (countdown, best XI, entry cards, top 5 captains, last-GW recap), Best Team (budget / horizon / bench weight, lock / ban from card menus, all in the URL, 422 lock errors with "undo the last lock"), Season Replay (scrubber with arrows / swipe, model pick vs hindsight best with shared players ringed, backfilled badge, season + capture charts that move the scrubber), My Team (ID helper, last ID remembered, lineup helper, season chart with rank axis + chips, past GW → Compare, confetti when you beat the model pick), Transfers (T = 0..5 options, recommended ring, hits, net-gain chart with break-even, path stepper, ghost-card preview), Compare (2-3 slots, per-slot source + GW, drag or arrow reorder, paste anywhere, copy all codes, shared / DIFF markers, 4 charts, phone carousel), Builder (drag or tap-to-place / tap-to-swap, live rule chips + debounced server check, undo / redo with Ctrl+Z, auto-complete with locks, import team, paste code, sticky summary on phones), Players (sortable table, FDR ticker), Model Card, 404, and a dev-only `/dev/kitchen-sink` (both themes side by side; not in production builds).
+- Shared pieces: Pitch (formation rows, bench order, deal-in stagger, shared-layout swaps), PlayerCard (hotlinked photo with tinted silhouette fallback, FPLense rating badge, armbands, availability flag, menu), PlayerDrawer (expected vs actual, SHAP waterfall, fixtures; lazy chunk), CodeBox + PasteCodeField, compare tray, global search (`/`, Ctrl/⌘ K), toasts, error boundary per page, cold-start "waking up the server" banner, first-visit 3-step tour, "Save as image", OG image (`scripts/make_og_image.py`).
+- `lib/teamCode.ts`: TypeScript port of `team_code.py`; matches all shared vectors byte for byte (CRC-8 check value 0xF4 first) and catches all 3 × 56 × 31 single-character typos.
+- Tests (Vitest + RTL + MSW + vitest-axe, no network): `teamCode` (20), `squadRules` (12, incl. the Builder draft logic), `format` (5), `Pitch` (4), `Builder` (5), `Compare` (5), `MyTeam` (5), `Transfers` (4), `motion` (6), `a11y` (22: 11 pages × light/dark). MSW fixtures are real API responses made by `scripts/make_web_fixtures.py` (the FastAPI app on the synthetic `published_mini` folder + the fake FPL from `tests/conftest.py`).
+
+**Deferred:**
+- The browser walkthrough (every page with a real team ID, desktop + phone width, reduce motion on/off) and the kitchen-sink "Details" checklist: the developer runs `uvicorn` + `npm run dev` (CLAUDE.md: Claude doesn't launch servers). Colour contrast can't be measured in jsdom, so it's part of that manual check.
+- Lighthouse scores: P8 (needs the deployed URLs).
+
+**Measured:**
+- Bundle (production build, gzip): main chunk **12.8 KB** (36.1 KB raw); first load ≈ 139 KB gzip (main + React 66.4 + Framer Motion 38.4 + TanStack Query 13.4 + CSS 8.0). Recharts (112.4 KB) and dnd-kit (16.5 KB) load only on pages that use them; the player drawer is lazy so Home never loads Recharts.
+- Tests: **88 Vitest tests** in 10 files (~50 s); `pytest -q` 322 passed (unchanged); `ruff`, `npm run lint`, `npm run typecheck`, `npm run build` clean.
+
+**Follow-ups / notes:**
+- P8: `VITE_API_URL` on Vercel, SPA rewrite for deep links, `FPLENSE_CORS_ORIGINS` on Render; the `ci.yml` web job runs `npm ci` and the four npm checks.
+- Recharts 2.x is no longer maintained upstream (npm deprecation notice); v3 is a later swap.
+- My Team's selected past GW isn't in the URL yet (everything else is).

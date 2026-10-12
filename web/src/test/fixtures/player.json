@@ -1,0 +1,106 @@
+{
+ "id": 30,
+ "code": 100030,
+ "web_name": "P30",
+ "name": "Player 30",
+ "pos": "FWD",
+ "club": "Club E",
+ "club_short": "CEA",
+ "price": 121,
+ "status": "a",
+ "chance_of_playing_next_round": null,
+ "news": "",
+ "availability": 1.0,
+ "selected_by_percent": 26.488589533538153,
+ "photo_url": "https://resources.premierleague.com/premierleague25/photos/players/110x140/100030.png",
+ "rating": 99,
+ "rating_source": "fplense",
+ "expected": [
+  {
+   "gw": 3,
+   "points": 6.279
+  },
+  {
+   "gw": 4,
+   "points": 6.222
+  }
+ ],
+ "p": 6.279,
+ "P_h": 11.879,
+ "actual": null,
+ "minutes": null,
+ "fixtures": [
+  {
+   "gw": 3,
+   "opponent": "CHA",
+   "home": false,
+   "fdr": 2,
+   "kickoff": "2026-08-35T14:00:00+00:00"
+  },
+  {
+   "gw": 4,
+   "opponent": "CIA",
+   "home": false,
+   "fdr": 2,
+   "kickoff": "2026-08-42T14:00:00+00:00"
+  }
+ ],
+ "season_points": 2,
+ "season_minutes": 95,
+ "prev_season_pts_per90": null,
+ "top_shap": "minutes_r3 +1.00",
+ "shap_base_value": 1.2000000476837158,
+ "shap_prediction": 0.7048829570412636,
+ "shap": [
+  {
+   "feature": "pts_last1",
+   "shap": -0.9618414044380188,
+   "value": 44.946844256892945
+  },
+  {
+   "feature": "price",
+   "shap": 0.25171253085136414,
+   "value": 49.87951975059597
+  },
+  {
+   "feature": "position",
+   "shap": 0.19669286906719208,
+   "value": "MID"
+  },
+  {
+   "feature": "minutes_r3",
+   "shap": 0.018318913877010345,
+   "value": 36.36338287215656
+  }
+ ],
+ "season": [
+  {
+   "gw": 1,
+   "expected": 5.651221829440808,
+   "actual": 1,
+   "minutes": 90,
+   "source": "backfill"
+  },
+  {
+   "gw": 2,
+   "expected": 6.279135366045343,
+   "actual": 1,
+   "minutes": 90,
+   "source": "live"
+  },
+  {
+   "gw": 3,
+   "expected": 6.279135366045343,
+   "actual": null,
+   "minutes": null,
+   "source": "latest"
+  },
+  {
+   "gw": 4,
+   "expected": 6.222264157367758,
+   "actual": null,
+   "minutes": null,
+   "source": "latest"
+  }
+ ]
+}

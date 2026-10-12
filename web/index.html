@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>FPLense · FPL points forecasts and the best squad</title>
+    <meta
+      name="description"
+      content="FPLense forecasts Fantasy Premier League points with a LightGBM model and picks the best legal £100m squad with an integer program. Load your team, compare up to 3, plan transfers."
+    />
+    <meta name="theme-color" content="#0E1834" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="FPLense · FPL forecasts and the best squad" />
+    <meta
+      property="og:description"
+      content="Expected points for every player, the best £100m team, season replay, team compare and transfer plans."
+    />
+    <meta property="og:image" content="/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // apply the saved theme before first paint (no light flash in dark mode)
+      try {
+        var t = JSON.parse(localStorage.getItem("fplense:theme") || '"system"');
+        if (t === "system") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>FPLense needs JavaScript to run.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

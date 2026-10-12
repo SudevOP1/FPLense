@@ -1,0 +1,64 @@
+{
+ "season": "2026-27",
+ "note": "capture_ratio is a product stat",
+ "gws": [
+  {
+   "gw": 1,
+   "source": "backfill",
+   "made_at": "2026-08-19T05:00:00+00:00",
+   "model_expected": 50.36,
+   "model_actual": 30,
+   "model_cost": 1000,
+   "hindsight_points": 69,
+   "hindsight_cost": 978,
+   "shared_players": 6,
+   "average_entry_score": 51,
+   "highest_score": 121,
+   "capture_ratio": 0.4348
+  },
+  {
+   "gw": 2,
+   "source": "live",
+   "made_at": "2026-08-26T05:00:00+00:00",
+   "model_expected": 55.95,
+   "model_actual": 18,
+   "model_cost": 1000,
+   "hindsight_points": 60,
+   "hindsight_cost": 984,
+   "shared_players": 1,
+   "average_entry_score": 52,
+   "highest_score": 122,
+   "capture_ratio": 0.3
+  }
+ ],
+ "events": [
+  {
+   "gw": 1,
+   "deadline_time": "2026-08-20T10:00:00Z",
+   "finished": true,
+   "average_entry_score": 51,
+   "highest_score": 121
+  },
+  {
+   "gw": 2,
+   "deadline_time": "2026-08-27T10:00:00Z",
+   "finished": true,
+   "average_entry_score": 52,
+   "highest_score": 122
+  },
+  {
+   "gw": 3,
+   "deadline_time": "2026-08-34T10:00:00Z",
+   "finished": false,
+   "average_entry_score": 0,
+   "highest_score": null
+  },
+  {
+   "gw": 4,
+   "deadline_time": "2026-08-41T10:00:00Z",
+   "finished": false,
+   "average_entry_score": 0,
+   "highest_score": null
+  }
+ ]
+}

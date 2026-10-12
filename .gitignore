@@ -29,3 +29,9 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# web (P7)
+node_modules/
+web/dist/
+web/coverage/
+*.tsbuildinfo
