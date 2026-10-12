@@ -1,0 +1,18 @@
+# Render Blueprint for the FPLense API (free web service). Serves the committed data/published/.
+services:
+  - type: web
+    name: fplense-api
+    runtime: python
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements-api.txt && pip install -e . --no-deps
+    startCommand: uvicorn fPLense.api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: FPLENSE_CORS_ORIGINS
+        value: https://sudevop1.github.io
+      - key: FPLENSE_PUBLISHED_DIR
+        value: /opt/render/project/src/data/published

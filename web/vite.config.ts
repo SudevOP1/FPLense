@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 
+// GitHub Pages serves the site from /FPLense/; the deploy workflow sets VITE_BASE
+const base = process.env.VITE_BASE ?? "/";
+
 /** Preload the two Latin web fonts (the rest of the subsets load on demand). */
 function preloadFonts(): Plugin {
   return {
@@ -14,7 +17,7 @@ function preloadFonts(): Plugin {
         const files = Object.keys(ctx.bundle ?? {}).filter((f) => /(inter|space-grotesk)-latin-wght-normal-.*\.woff2$/.test(f));
         return files.map((f) => ({
           tag: "link",
-          attrs: { rel: "preload", href: `/${f}`, as: "font", type: "font/woff2", crossorigin: "" },
+          attrs: { rel: "preload", href: `${base}${f}`, as: "font", type: "font/woff2", crossorigin: "" },
           injectTo: "head" as const,
         }));
       },
@@ -23,6 +26,7 @@ function preloadFonts(): Plugin {
 }
 
 export default defineConfig({
+  base,
   plugins: [react(), preloadFonts()],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: { port: 5173 },

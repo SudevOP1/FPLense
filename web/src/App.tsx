@@ -30,7 +30,10 @@ export const ROUTER_FUTURE = {
   v7_skipActionErrorRevalidation: true,
 } as const;
 
-const router = createBrowserRouter(routes, { future: ROUTER_FUTURE });
+const router = createBrowserRouter(routes, {
+  basename: import.meta.env.BASE_URL.replace(/\/$/, "") || "/",
+  future: ROUTER_FUTURE,
+});
 
 export function App() {
   return (
